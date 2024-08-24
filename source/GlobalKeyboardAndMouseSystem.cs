@@ -15,6 +15,10 @@ namespace InputDevices.Systems
         private MouseState mouseControls = default;
         private KeyboardState lastKeyboard = default;
         private MouseState lastMouse = default;
+        private bool mouseMoved;
+        private bool mouseScrolled;
+        private Vector2 mousePosition;
+        private Vector2 mouseScroll;
         private eint keyboardEntity;
         private eint mouseEntity;
 
@@ -88,12 +92,24 @@ namespace InputDevices.Systems
                 }
             }
 
-            if (mouseUpdated)
+            if (mouseMoved)
+            {
+                mouse.Position = mousePosition;
+            }
+
+            if (mouseScrolled)
+            {
+                mouse.Scroll = mouseScroll;
+            }
+
+            if (mouseUpdated || mouseMoved || mouseScrolled)
             {
                 InputDevice device = mouse;
                 DateTimeOffset when = DateTimeOffset.Now;
                 TimeSpan timestamp = when - DateTimeOffset.UnixEpoch;
                 device.SetUpdateTime(timestamp);
+                mouseMoved = false;
+                mouseScrolled = false;
             }
         }
 
@@ -121,34 +137,24 @@ namespace InputDevices.Systems
 
         private void OnKeyPressed(object? sender, KeyboardHookEventArgs e)
         {
-            if (world != default)
+            if (world != default && e.Data.KeyCode != KeyCode.VcUndefined)
             {
                 Keyboard.Button control = GetControl(e.Data.KeyCode);
                 if (!keyboardControls[(uint)control])
                 {
                     keyboardControls[(uint)control] = true;
-                    Keyboard keyboard = GetOrCreateKeyboard();
-                    InputDevice device = keyboard;
-                    DateTimeOffset when = e.EventTime;
-                    TimeSpan timestamp = when - DateTimeOffset.UnixEpoch;
-                    device.SetUpdateTime(timestamp);
                 }
             }
         }
 
         private void OnKeyReleased(object? sender, KeyboardHookEventArgs e)
         {
-            if (world != default)
+            if (world != default && e.Data.KeyCode != KeyCode.VcUndefined)
             {
                 Keyboard.Button control = GetControl(e.Data.KeyCode);
                 if (keyboardControls[(uint)control])
                 {
                     keyboardControls[(uint)control] = false;
-                    Keyboard keyboard = GetOrCreateKeyboard();
-                    InputDevice device = keyboard;
-                    DateTimeOffset when = e.EventTime;
-                    TimeSpan timestamp = when - DateTimeOffset.UnixEpoch;
-                    device.SetUpdateTime(timestamp);
                 }
             }
         }
@@ -161,11 +167,6 @@ namespace InputDevices.Systems
                 if (!mouseControls[control])
                 {
                     mouseControls[control] = true;
-                    Mouse mouse = GetOrCreateMouse();
-                    InputDevice device = mouse;
-                    DateTimeOffset when = e.EventTime;
-                    TimeSpan timestamp = when - DateTimeOffset.UnixEpoch;
-                    device.SetUpdateTime(timestamp);
                 }
             }
         }
@@ -178,11 +179,6 @@ namespace InputDevices.Systems
                 if (mouseControls[control])
                 {
                     mouseControls[control] = false;
-                    Mouse mouse = GetOrCreateMouse();
-                    InputDevice device = mouse;
-                    DateTimeOffset when = e.EventTime;
-                    TimeSpan timestamp = when - DateTimeOffset.UnixEpoch;
-                    device.SetUpdateTime(timestamp);
                 }
             }
         }
@@ -191,12 +187,8 @@ namespace InputDevices.Systems
         {
             if (world != default)
             {
-                Mouse mouse = GetOrCreateMouse();
-                InputDevice device = mouse;
-                mouse.Position = new Vector2(e.Data.X, e.Data.Y);
-                DateTimeOffset when = e.EventTime;
-                TimeSpan timestamp = when - DateTimeOffset.UnixEpoch;
-                device.SetUpdateTime(timestamp);
+                mousePosition = new Vector2(e.Data.X, e.Data.Y);
+                mouseMoved = true;
             }
         }
 
@@ -204,12 +196,8 @@ namespace InputDevices.Systems
         {
             if (world != default)
             {
-                Mouse mouse = GetOrCreateMouse();
-                InputDevice device = mouse;
-                mouse.Scroll = new Vector2(e.Data.X, e.Data.Y);
-                DateTimeOffset when = e.EventTime;
-                TimeSpan timestamp = when - DateTimeOffset.UnixEpoch;
-                device.SetUpdateTime(timestamp);
+                mouseScroll = new Vector2(e.Data.X, e.Data.Y);
+                mouseScrolled = true;
             }
         }
 
