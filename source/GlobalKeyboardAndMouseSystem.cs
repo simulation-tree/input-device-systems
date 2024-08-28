@@ -10,129 +10,166 @@ namespace InputDevices.Systems
 {
     public class GlobalKeyboardAndMouseSystem : SystemBase
     {
-        private readonly TaskPoolGlobalHook kbmHook;
-        private KeyboardState keyboardControls = default;
-        private MouseState mouseControls = default;
+        private readonly Query<IsGlobal, IsKeyboard> globalKeyboardQuery;
+        private readonly Query<IsGlobal, IsMouse> globalMouseQuery;
+
+        private TaskPoolGlobalHook? kbmHook;
+        private KeyboardState currentKeyboard = default;
+        private MouseState currentMouse = default;
         private KeyboardState lastKeyboard = default;
         private MouseState lastMouse = default;
         private bool mouseMoved;
         private bool mouseScrolled;
         private Vector2 mousePosition;
         private Vector2 mouseScroll;
-        private eint keyboardEntity;
-        private eint mouseEntity;
+        private eint globalKeyboardEntity;
+        private eint globalMouseEntity;
 
         public GlobalKeyboardAndMouseSystem(World world) : base(world)
         {
-            keyboardEntity = (Entity)GetOrCreateKeyboard();
-            mouseEntity = (Entity)GetOrCreateMouse();
-            kbmHook = new();
-
-            kbmHook.KeyPressed += OnKeyPressed;
-            kbmHook.KeyReleased += OnKeyReleased;
-            kbmHook.MousePressed += OnMousePressed;
-            kbmHook.MouseReleased += OnMouseReleased;
-            kbmHook.MouseMoved += OnMouseMoved;
-            kbmHook.MouseWheel += OnMouseWheel;
-
-            kbmHook.RunAsync();
+            globalKeyboardQuery = new(world);
+            globalMouseQuery = new(world);
             Subscribe<InputUpdate>(Update);
         }
 
         public override void Dispose()
         {
-            kbmHook.Dispose();
+            if (kbmHook is not null)
+            {
+                kbmHook.Dispose();
+            }
+
+            globalMouseQuery.Dispose();
+            globalKeyboardQuery.Dispose();
             base.Dispose();
         }
 
         private void Update(InputUpdate update)
         {
+            FindGlobalDevices();
             UpdateStates();
+        }
+
+        private void FindGlobalDevices()
+        {
+            globalKeyboardEntity = default;
+            globalMouseEntity = default;
+            globalKeyboardQuery.Update();
+            foreach (var r in globalKeyboardQuery)
+            {
+                if (globalKeyboardEntity == default)
+                {
+                    globalKeyboardEntity = r.entity;
+                }
+                else
+                {
+                    throw new InvalidOperationException("Multiple global keyboards detected");
+                }
+            }
+
+            globalMouseQuery.Update();
+            foreach (var r in globalMouseQuery)
+            {
+                if (globalMouseEntity == default)
+                {
+                    globalMouseEntity = r.entity;
+                }
+                else
+                {
+                    throw new InvalidOperationException("Multiple global mice detected");
+                }
+            }
+
+            if (kbmHook is null)
+            {
+                if (globalKeyboardEntity != default || globalMouseEntity != default)
+                {
+                    kbmHook = InitializeGlobalHook();
+                }
+            }
+        }
+
+        private TaskPoolGlobalHook InitializeGlobalHook()
+        {
+            TaskPoolGlobalHook kbmHook = new();
+            kbmHook.KeyPressed += OnKeyPressed;
+            kbmHook.KeyReleased += OnKeyReleased;
+            kbmHook.MousePressed += OnMousePressed;
+            kbmHook.MouseReleased += OnMouseReleased;
+            kbmHook.MouseDragged += OnMouseDragged;
+            kbmHook.MouseMoved += OnMouseMoved;
+            kbmHook.MouseWheel += OnMouseWheel;
+            kbmHook.RunAsync();
+            return kbmHook;
         }
 
         private void UpdateStates()
         {
-            Keyboard keyboard = GetOrCreateKeyboard();
-            bool keyboardUpdated = false;
-            for (uint i = 0; i < KeyboardState.MaxKeyCount; i++)
+            if (globalKeyboardEntity != default)
             {
-                bool next = keyboardControls[i];
-                bool previous = lastKeyboard[i];
-                ButtonState state = keyboard.GetButtonState(i);
-                ButtonState current = new(previous, next);
-                if (state != current)
+                Keyboard keyboard = new(world, globalKeyboardEntity);
+                bool keyboardUpdated = false;
+                for (uint i = 0; i < KeyboardState.MaxKeyCount; i++)
                 {
-                    lastKeyboard[i] = next;
-                    keyboard.SetButtonState(i, current);
-                    keyboardUpdated = true;
+                    bool next = currentKeyboard[i];
+                    bool previous = lastKeyboard[i];
+                    ButtonState state = keyboard.GetButtonState(i);
+                    ButtonState current = new(previous, next);
+                    if (state != current)
+                    {
+                        lastKeyboard[i] = next;
+                        keyboard.SetButtonState(i, current);
+                        keyboardUpdated = true;
+                    }
+                }
+
+                if (keyboardUpdated)
+                {
+                    InputDevice device = keyboard;
+                    DateTimeOffset when = DateTimeOffset.Now;
+                    TimeSpan timestamp = when - DateTimeOffset.UnixEpoch;
+                    device.SetUpdateTime(timestamp);
                 }
             }
 
-            if (keyboardUpdated)
+            if (globalMouseEntity != default)
             {
-                InputDevice device = keyboard;
-                DateTimeOffset when = DateTimeOffset.Now;
-                TimeSpan timestamp = when - DateTimeOffset.UnixEpoch;
-                device.SetUpdateTime(timestamp);
-            }
-
-            Mouse mouse = GetOrCreateMouse();
-            bool mouseUpdated = false;
-            for (uint i = 0; i < MouseState.MaxButtonCount; i++)
-            {
-                bool next = mouseControls[i];
-                bool previous = lastMouse[i];
-                ButtonState state = mouse.GetButtonState(i);
-                ButtonState current = new(previous, next);
-                if (state != current)
+                Mouse mouse = new(world, globalMouseEntity);
+                bool mouseUpdated = false;
+                for (uint i = 0; i < MouseState.MaxButtonCount; i++)
                 {
-                    lastMouse[i] = next;
-                    mouse.SetButtonState(i, current);
-                    mouseUpdated = true;
+                    bool next = currentMouse[i];
+                    bool previous = lastMouse[i];
+                    ButtonState state = mouse.GetButtonState(i);
+                    ButtonState current = new(previous, next);
+                    if (state != current)
+                    {
+                        lastMouse[i] = next;
+                        mouse.SetButtonState(i, current);
+                        mouseUpdated = true;
+                    }
+                }
+
+                if (mouseMoved)
+                {
+                    mouse.Position = mousePosition;
+                }
+
+                if (mouseScrolled)
+                {
+                    mouse.Scroll = mouseScroll;
+                }
+
+                if (mouseUpdated || mouseMoved || mouseScrolled)
+                {
+                    InputDevice device = mouse;
+                    DateTimeOffset when = DateTimeOffset.Now;
+                    TimeSpan timestamp = when - DateTimeOffset.UnixEpoch;
+                    device.SetUpdateTime(timestamp);
+                    mouseMoved = false;
+                    mouseScrolled = false;
                 }
             }
-
-            if (mouseMoved)
-            {
-                mouse.Position = mousePosition;
-            }
-
-            if (mouseScrolled)
-            {
-                mouse.Scroll = mouseScroll;
-            }
-
-            if (mouseUpdated || mouseMoved || mouseScrolled)
-            {
-                InputDevice device = mouse;
-                DateTimeOffset when = DateTimeOffset.Now;
-                TimeSpan timestamp = when - DateTimeOffset.UnixEpoch;
-                device.SetUpdateTime(timestamp);
-                mouseMoved = false;
-                mouseScrolled = false;
-            }
-        }
-
-        private Keyboard GetOrCreateKeyboard()
-        {
-            if (keyboardEntity == default)
-            {
-                Keyboard keyboard = new(world);
-                keyboardEntity = (Entity)keyboard;
-            }
-
-            return new(world, keyboardEntity);
-        }
-
-        private Mouse GetOrCreateMouse()
-        {
-            if (mouseEntity == default)
-            {
-                Mouse mouse = new(world);
-                mouseEntity = (Entity)mouse;
-            }
-
-            return new(world, mouseEntity);
         }
 
         private void OnKeyPressed(object? sender, KeyboardHookEventArgs e)
@@ -140,9 +177,9 @@ namespace InputDevices.Systems
             if (world != default && e.Data.KeyCode != KeyCode.VcUndefined)
             {
                 Keyboard.Button control = GetControl(e.Data.KeyCode);
-                if (!keyboardControls[(uint)control])
+                if (!currentKeyboard[(uint)control])
                 {
-                    keyboardControls[(uint)control] = true;
+                    currentKeyboard[(uint)control] = true;
                 }
             }
         }
@@ -152,9 +189,9 @@ namespace InputDevices.Systems
             if (world != default && e.Data.KeyCode != KeyCode.VcUndefined)
             {
                 Keyboard.Button control = GetControl(e.Data.KeyCode);
-                if (keyboardControls[(uint)control])
+                if (currentKeyboard[(uint)control])
                 {
-                    keyboardControls[(uint)control] = false;
+                    currentKeyboard[(uint)control] = false;
                 }
             }
         }
@@ -164,9 +201,9 @@ namespace InputDevices.Systems
             if (world != default)
             {
                 uint control = (uint)e.Data.Button;
-                if (!mouseControls[control])
+                if (!currentMouse[control])
                 {
-                    mouseControls[control] = true;
+                    currentMouse[control] = true;
                 }
             }
         }
@@ -176,10 +213,19 @@ namespace InputDevices.Systems
             if (world != default)
             {
                 uint control = (uint)e.Data.Button;
-                if (mouseControls[control])
+                if (currentMouse[control])
                 {
-                    mouseControls[control] = false;
+                    currentMouse[control] = false;
                 }
+            }
+        }
+
+        private void OnMouseDragged(object? sender, MouseHookEventArgs e)
+        {
+            if (world != default)
+            {
+                mousePosition = new Vector2(e.Data.X, e.Data.Y);
+                mouseMoved = true;
             }
         }
 
