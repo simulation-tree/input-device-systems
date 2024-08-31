@@ -22,8 +22,8 @@ namespace InputDevices.Systems
         private bool mouseScrolled;
         private Vector2 mousePosition;
         private Vector2 mouseScroll;
-        private eint globalKeyboardEntity;
-        private eint globalMouseEntity;
+        private uint globalKeyboardEntity;
+        private uint globalMouseEntity;
 
         public GlobalKeyboardAndMouseSystem(World world) : base(world)
         {

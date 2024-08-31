@@ -13,10 +13,10 @@ namespace InputDevices.Systems
     {
         private static readonly Dictionary<nint, WindowDevicesSystems> systems = new();
 
-        private readonly UnmanagedDictionary<uint, eint> keyboardEntities;
+        private readonly UnmanagedDictionary<uint, uint> keyboardEntities;
         private readonly UnmanagedDictionary<uint, KeyboardState> currentKeyboards;
         private readonly UnmanagedDictionary<uint, KeyboardState> lastKeyboards;
-        private readonly UnmanagedDictionary<uint, eint> mouseEntities;
+        private readonly UnmanagedDictionary<uint, uint> mouseEntities;
         private readonly UnmanagedDictionary<uint, MouseState> currentMice;
         private readonly UnmanagedDictionary<uint, MouseState> lastMice;
         private unsafe readonly delegate* unmanaged<nint, SDL_Event*, int> eventFilterFunction;
@@ -185,7 +185,7 @@ namespace InputDevices.Systems
 
         private Keyboard GetOrCreateKeyboard(uint keyboardId)
         {
-            if (!keyboardEntities.TryGetValue(keyboardId, out eint keyboardEntity))
+            if (!keyboardEntities.TryGetValue(keyboardId, out uint keyboardEntity))
             {
                 keyboardEntity = world.CreateEntity();
                 world.AddComponent(keyboardEntity, new IsKeyboard());
@@ -198,7 +198,7 @@ namespace InputDevices.Systems
 
         private Mouse GetOrCreateMouse(uint mouseId)
         {
-            if (!mouseEntities.TryGetValue(mouseId, out eint mouseEntity))
+            if (!mouseEntities.TryGetValue(mouseId, out uint mouseEntity))
             {
                 mouseEntity = world.CreateEntity();
                 world.AddComponent(mouseEntity, new IsMouse());
