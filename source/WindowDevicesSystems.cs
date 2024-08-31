@@ -31,27 +31,9 @@ namespace InputDevices.Systems
             lastMice = new();
             systems.Add(world.Address, this);
             Subscribe<InputUpdate>(Update);
+
             eventFilterFunction = &EventFilter;
             SDL_AddEventWatch(eventFilterFunction, world.Address);
-        }
-
-        [UnmanagedCallersOnly]
-        private static unsafe int EventFilter(nint worldAddress, SDL_Event* sdlEvent)
-        {
-            SDL_EventType type = sdlEvent->type;
-            if (type == SDL_EventType.MouseMotion || type == SDL_EventType.MouseWheel || type == SDL_EventType.MouseAdded ||
-                type == SDL_EventType.MouseRemoved || type == SDL_EventType.MouseButtonDown || type == SDL_EventType.MouseButtonUp)
-            {
-                WindowDevicesSystems system = systems[worldAddress];
-                system.MouseEvent(type, sdlEvent->mdevice, sdlEvent->motion, sdlEvent->wheel, sdlEvent->button, sdlEvent->window.windowID);
-            }
-            else if (type == SDL_EventType.KeyboardAdded || type == SDL_EventType.KeyboardRemoved || type == SDL_EventType.KeyDown || type == SDL_EventType.KeyUp)
-            {
-                WindowDevicesSystems system = systems[worldAddress];
-                system.KeyboardEvent(type, sdlEvent->kdevice, sdlEvent->key);
-            }
-
-            return 1;
         }
 
         public unsafe override void Dispose()
@@ -209,6 +191,25 @@ namespace InputDevices.Systems
             }
 
             return new Mouse(world, mouseEntity);
+        }
+
+        [UnmanagedCallersOnly]
+        private static unsafe int EventFilter(nint worldAddress, SDL_Event* sdlEvent)
+        {
+            SDL_EventType type = sdlEvent->type;
+            if (type == SDL_EventType.MouseMotion || type == SDL_EventType.MouseWheel || type == SDL_EventType.MouseAdded ||
+                type == SDL_EventType.MouseRemoved || type == SDL_EventType.MouseButtonDown || type == SDL_EventType.MouseButtonUp)
+            {
+                WindowDevicesSystems system = systems[worldAddress];
+                system.MouseEvent(type, sdlEvent->mdevice, sdlEvent->motion, sdlEvent->wheel, sdlEvent->button, sdlEvent->window.windowID);
+            }
+            else if (type == SDL_EventType.KeyboardAdded || type == SDL_EventType.KeyboardRemoved || type == SDL_EventType.KeyDown || type == SDL_EventType.KeyUp)
+            {
+                WindowDevicesSystems system = systems[worldAddress];
+                system.KeyboardEvent(type, sdlEvent->kdevice, sdlEvent->key);
+            }
+
+            return 1;
         }
     }
 }

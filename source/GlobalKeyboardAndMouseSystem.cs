@@ -1,15 +1,20 @@
 ﻿using InputDevices.Components;
 using InputDevices.Events;
+using SDL3;
 using SharpHook;
 using SharpHook.Native;
 using Simulation;
 using System;
+using System.Collections.Generic;
 using System.Numerics;
+using System.Runtime.InteropServices;
 
 namespace InputDevices.Systems
 {
     public class GlobalKeyboardAndMouseSystem : SystemBase
     {
+        private static readonly Dictionary<nint, GlobalKeyboardAndMouseSystem> systems = new();
+
         private readonly Query<IsGlobal, IsKeyboard> globalKeyboardQuery;
         private readonly Query<IsGlobal, IsMouse> globalMouseQuery;
 
@@ -24,12 +29,19 @@ namespace InputDevices.Systems
         private Vector2 mouseScroll;
         private uint globalKeyboardEntity;
         private uint globalMouseEntity;
+        private uint screenWidth;
+        private uint screenHeight;
+        private unsafe readonly delegate* unmanaged<nint, SDL_Event*, int> eventFilterFunction;
 
-        public GlobalKeyboardAndMouseSystem(World world) : base(world)
+        public unsafe GlobalKeyboardAndMouseSystem(World world) : base(world)
         {
+            systems.Add(world.Address, this);
             globalKeyboardQuery = new(world);
             globalMouseQuery = new(world);
             Subscribe<InputUpdate>(Update);
+
+            eventFilterFunction = &EventFilter;
+            SDL3.SDL3.SDL_AddEventWatch(eventFilterFunction, world.Address);
         }
 
         public override void Dispose()
@@ -41,6 +53,7 @@ namespace InputDevices.Systems
 
             globalMouseQuery.Dispose();
             globalKeyboardQuery.Dispose();
+            systems.Remove(world.Address);
             base.Dispose();
         }
 
@@ -152,8 +165,7 @@ namespace InputDevices.Systems
 
                 if (mouseMoved)
                 {
-                    //todo: flip this mouse position using the current monitors height, need to get monitor info
-                    mouse.Position = mousePosition;
+                    mouse.Position = new(mousePosition.X, screenHeight - mousePosition.Y);
                 }
 
                 if (mouseScrolled)
@@ -346,6 +358,22 @@ namespace InputDevices.Systems
                 KeyCode.VcUp => Keyboard.Button.Up,
                 _ => throw new NotImplementedException($"Key code {keyCode} is not implemented")
             };
+        }
+
+        [UnmanagedCallersOnly]
+        private static unsafe int EventFilter(nint worldAddress, SDL_Event* sdlEvent)
+        {
+            SDL_Window sdlWindow = SDL3.SDL3.SDL_GetWindowFromID(sdlEvent->window.windowID);
+            if (sdlWindow.Value != default)
+            {
+                GlobalKeyboardAndMouseSystem system = systems[worldAddress];
+                SDL_DisplayID displayId = SDL3.SDL3.SDL_GetDisplayForWindow(sdlWindow);
+                SDL_DisplayMode* displayMode = SDL3.SDL3.SDL_GetCurrentDisplayMode(displayId);
+                system.screenWidth = (uint)displayMode->w;
+                system.screenHeight = (uint)displayMode->h;
+            }
+
+            return 1;
         }
     }
 }
