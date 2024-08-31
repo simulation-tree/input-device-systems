@@ -152,6 +152,7 @@ namespace InputDevices.Systems
 
                 if (mouseMoved)
                 {
+                    //todo: flip this mouse position using the current monitors height, need to get monitor info
                     mouse.Position = mousePosition;
                 }
 

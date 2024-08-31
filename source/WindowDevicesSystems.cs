@@ -43,7 +43,7 @@ namespace InputDevices.Systems
                 type == SDL_EventType.MouseRemoved || type == SDL_EventType.MouseButtonDown || type == SDL_EventType.MouseButtonUp)
             {
                 WindowDevicesSystems system = systems[worldAddress];
-                system.MouseEvent(type, sdlEvent->mdevice, sdlEvent->motion, sdlEvent->wheel, sdlEvent->button);
+                system.MouseEvent(type, sdlEvent->mdevice, sdlEvent->motion, sdlEvent->wheel, sdlEvent->button, sdlEvent->window.windowID);
             }
             else if (type == SDL_EventType.KeyboardAdded || type == SDL_EventType.KeyboardRemoved || type == SDL_EventType.KeyDown || type == SDL_EventType.KeyUp)
             {
@@ -78,8 +78,8 @@ namespace InputDevices.Systems
             {
                 Keyboard keyboard = GetOrCreateKeyboard(keyboardId);
                 Entity entity = keyboard;
-                ref KeyboardState state = ref entity.GetComponent<IsKeyboard>().state;
-                ref KeyboardState lastState = ref entity.GetComponent<LastKeyboardState>().value;
+                ref KeyboardState state = ref entity.GetComponentRef<IsKeyboard>().state;
+                ref KeyboardState lastState = ref entity.GetComponentRef<LastKeyboardState>().value;
                 state = currentKeyboards[keyboardId];
                 lastState = lastKeyboards[keyboardId];
             }
@@ -88,8 +88,8 @@ namespace InputDevices.Systems
             {
                 Mouse mouse = GetOrCreateMouse(mouseId);
                 Entity entity = mouse;
-                ref MouseState state = ref entity.GetComponent<IsMouse>().state;
-                ref MouseState lastState = ref entity.GetComponent<LastMouseState>().value;
+                ref MouseState state = ref entity.GetComponentRef<IsMouse>().state;
+                ref MouseState lastState = ref entity.GetComponentRef<LastMouseState>().value;
                 state = currentMice[mouseId];
                 lastState = lastMice[mouseId];
             }
@@ -141,7 +141,7 @@ namespace InputDevices.Systems
             }
         }
 
-        private void MouseEvent(SDL_EventType type, SDL_MouseDeviceEvent mdevice, SDL_MouseMotionEvent motion, SDL_MouseWheelEvent wheel, SDL_MouseButtonEvent button)
+        private void MouseEvent(SDL_EventType type, SDL_MouseDeviceEvent mdevice, SDL_MouseMotionEvent motion, SDL_MouseWheelEvent wheel, SDL_MouseButtonEvent button, SDL_WindowID windowId)
         {
             uint mouseId = (uint)mdevice.which;
             if (type == SDL_EventType.MouseRemoved)
@@ -162,8 +162,10 @@ namespace InputDevices.Systems
                 ref MouseState currentState = ref currentMice[mouseId];
                 if (type == SDL_EventType.MouseMotion)
                 {
+                    SDL_Window window = SDL_GetWindowFromID(windowId);
+                    SDL_GetWindowSize(window, out _, out int height);
                     currentState.positionX = (int)motion.x;
-                    currentState.positionY = (int)motion.y;
+                    currentState.positionY = height - (int)motion.y;
                 }
                 else if (type == SDL_EventType.MouseWheel)
                 {
