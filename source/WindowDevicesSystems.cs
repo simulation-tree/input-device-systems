@@ -19,7 +19,7 @@ namespace InputDevices.Systems
         private readonly UnmanagedDictionary<uint, uint> mouseEntities;
         private readonly UnmanagedDictionary<uint, MouseState> currentMice;
         private readonly UnmanagedDictionary<uint, MouseState> lastMice;
-        private unsafe readonly delegate* unmanaged<nint, SDL_Event*, int> eventFilterFunction;
+        private unsafe readonly delegate* unmanaged<nint, SDL_Event*, SDL_bool> eventFilterFunction;
 
         public unsafe WindowDevicesSystems(World world) : base(world)
         {
@@ -194,7 +194,7 @@ namespace InputDevices.Systems
         }
 
         [UnmanagedCallersOnly]
-        private static unsafe int EventFilter(nint worldAddress, SDL_Event* sdlEvent)
+        private static unsafe SDL_bool EventFilter(nint worldAddress, SDL_Event* sdlEvent)
         {
             SDL_EventType type = sdlEvent->type;
             if (type == SDL_EventType.MouseMotion || type == SDL_EventType.MouseWheel || type == SDL_EventType.MouseAdded ||
@@ -209,7 +209,7 @@ namespace InputDevices.Systems
                 system.KeyboardEvent(type, sdlEvent->kdevice, sdlEvent->key);
             }
 
-            return 1;
+            return SDL_bool.SDL_TRUE;
         }
     }
 }

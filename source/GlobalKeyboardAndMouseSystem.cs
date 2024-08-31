@@ -31,7 +31,7 @@ namespace InputDevices.Systems
         private uint globalMouseEntity;
         private uint screenWidth;
         private uint screenHeight;
-        private unsafe readonly delegate* unmanaged<nint, SDL_Event*, int> eventFilterFunction;
+        private unsafe readonly delegate* unmanaged<nint, SDL_Event*, SDL_bool> eventFilterFunction;
 
         public unsafe GlobalKeyboardAndMouseSystem(World world) : base(world)
         {
@@ -361,7 +361,7 @@ namespace InputDevices.Systems
         }
 
         [UnmanagedCallersOnly]
-        private static unsafe int EventFilter(nint worldAddress, SDL_Event* sdlEvent)
+        private static unsafe SDL_bool EventFilter(nint worldAddress, SDL_Event* sdlEvent)
         {
             SDL_Window sdlWindow = SDL3.SDL3.SDL_GetWindowFromID(sdlEvent->window.windowID);
             if (sdlWindow.Value != default)
@@ -373,7 +373,7 @@ namespace InputDevices.Systems
                 system.screenHeight = (uint)displayMode->h;
             }
 
-            return 1;
+            return SDL_bool.SDL_TRUE;
         }
     }
 }
