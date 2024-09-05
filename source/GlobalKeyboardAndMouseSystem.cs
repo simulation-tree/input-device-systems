@@ -15,8 +15,8 @@ namespace InputDevices.Systems
     {
         private static readonly Dictionary<nint, GlobalKeyboardAndMouseSystem> systems = new();
 
-        private readonly Query<IsGlobal, IsKeyboard> globalKeyboardQuery;
-        private readonly Query<IsGlobal, IsMouse> globalMouseQuery;
+        private readonly ComponentQuery<IsGlobal, IsKeyboard> globalKeyboardQuery;
+        private readonly ComponentQuery<IsGlobal, IsMouse> globalMouseQuery;
 
         private TaskPoolGlobalHook? kbmHook;
         private KeyboardState currentKeyboard = default;
@@ -36,8 +36,8 @@ namespace InputDevices.Systems
         public unsafe GlobalKeyboardAndMouseSystem(World world) : base(world)
         {
             systems.Add(world.Address, this);
-            globalKeyboardQuery = new(world);
-            globalMouseQuery = new(world);
+            globalKeyboardQuery = new();
+            globalMouseQuery = new();
             Subscribe<InputUpdate>(Update);
 
             eventFilterFunction = &EventFilter;
@@ -67,7 +67,7 @@ namespace InputDevices.Systems
         {
             globalKeyboardEntity = default;
             globalMouseEntity = default;
-            globalKeyboardQuery.Update();
+            globalKeyboardQuery.Update(world);
             foreach (var r in globalKeyboardQuery)
             {
                 if (globalKeyboardEntity == default)
@@ -80,7 +80,7 @@ namespace InputDevices.Systems
                 }
             }
 
-            globalMouseQuery.Update();
+            globalMouseQuery.Update(world);
             foreach (var r in globalMouseQuery)
             {
                 if (globalMouseEntity == default)
@@ -138,10 +138,9 @@ namespace InputDevices.Systems
 
                 if (keyboardUpdated)
                 {
-                    InputDevice device = keyboard;
                     DateTimeOffset when = DateTimeOffset.Now;
                     TimeSpan timestamp = when - DateTimeOffset.UnixEpoch;
-                    device.SetUpdateTime(timestamp);
+                    keyboard.device.SetUpdateTime(timestamp);
                 }
             }
 
@@ -175,10 +174,9 @@ namespace InputDevices.Systems
 
                 if (mouseUpdated || mouseMoved || mouseScrolled)
                 {
-                    InputDevice device = mouse;
                     DateTimeOffset when = DateTimeOffset.Now;
                     TimeSpan timestamp = when - DateTimeOffset.UnixEpoch;
-                    device.SetUpdateTime(timestamp);
+                    mouse.device.SetUpdateTime(timestamp);
                     mouseMoved = false;
                     mouseScrolled = false;
                 }

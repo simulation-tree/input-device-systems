@@ -59,9 +59,8 @@ namespace InputDevices.Systems
             foreach (uint keyboardId in currentKeyboards.Keys)
             {
                 Keyboard keyboard = GetOrCreateKeyboard(keyboardId);
-                Entity entity = keyboard;
-                ref KeyboardState state = ref entity.GetComponentRef<IsKeyboard>().state;
-                ref KeyboardState lastState = ref entity.GetComponentRef<LastKeyboardState>().value;
+                ref KeyboardState state = ref keyboard.device.entity.GetComponentRef<IsKeyboard>().state;
+                ref KeyboardState lastState = ref keyboard.device.entity.GetComponentRef<LastKeyboardState>().value;
                 state = currentKeyboards[keyboardId];
                 lastState = lastKeyboards[keyboardId];
             }
@@ -69,9 +68,8 @@ namespace InputDevices.Systems
             foreach (uint mouseId in currentMice.Keys)
             {
                 Mouse mouse = GetOrCreateMouse(mouseId);
-                Entity entity = mouse;
-                ref MouseState state = ref entity.GetComponentRef<IsMouse>().state;
-                ref MouseState lastState = ref entity.GetComponentRef<LastMouseState>().value;
+                ref MouseState state = ref mouse.device.entity.GetComponentRef<IsMouse>().state;
+                ref MouseState lastState = ref mouse.device.entity.GetComponentRef<LastMouseState>().value;
                 state = currentMice[mouseId];
                 lastState = lastMice[mouseId];
             }
