@@ -164,7 +164,7 @@ namespace InputDevices.Systems
 
                 if (mouseMoved)
                 {
-                    mouse.Position = new(mousePosition.X, screenHeight - mousePosition.Y);
+                    mouse.Position = mousePosition;
                 }
 
                 if (mouseScrolled)
@@ -354,6 +354,7 @@ namespace InputDevices.Systems
                 KeyCode.VcLeft => Keyboard.Button.Left,
                 KeyCode.VcDown => Keyboard.Button.Down,
                 KeyCode.VcUp => Keyboard.Button.Up,
+                KeyCode.VcHome => Keyboard.Button.Home,
                 _ => throw new NotImplementedException($"Key code {keyCode} is not implemented")
             };
         }
