@@ -355,6 +355,7 @@ namespace InputDevices.Systems
                 KeyCode.VcDown => Keyboard.Button.Down,
                 KeyCode.VcUp => Keyboard.Button.Up,
                 KeyCode.VcHome => Keyboard.Button.Home,
+                KeyCode.VcEnd => Keyboard.Button.End,
                 _ => throw new NotImplementedException($"Key code {keyCode} is not implemented")
             };
         }
