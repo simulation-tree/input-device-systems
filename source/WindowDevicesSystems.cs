@@ -38,7 +38,7 @@ namespace InputDevices.Systems
 
         public unsafe override void Dispose()
         {
-            SDL_DelEventWatch(eventFilterFunction, world.Address);
+            SDL_RemoveEventWatch(eventFilterFunction, world.Address);
             mouseEntities.Dispose();
             currentMice.Dispose();
             lastMice.Dispose();
