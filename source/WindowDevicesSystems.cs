@@ -87,6 +87,10 @@ namespace InputDevices.Systems
             {
                 ref MouseState lastState = ref lastMice[mouseId];
                 lastState = currentMice[mouseId];
+
+                ref MouseState currentState = ref currentMice[mouseId];
+                currentState.scrollX = default;
+                currentState.scrollY = default;
             }
         }
 
