@@ -2,17 +2,16 @@
 using InputDevices.Events;
 using SDL3;
 using Simulation;
-using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Unmanaged.Collections;
 using static SDL3.SDL3;
 
 namespace InputDevices.Systems
 {
+    //todo: perhaps split this system into one for each type of device?
+    //tho then that will mean 3 individual event watchers
     public class WindowDevicesSystems : SystemBase
     {
-        private static readonly Dictionary<nint, WindowDevicesSystems> systems = new();
-
         private readonly UnmanagedDictionary<uint, uint> keyboardEntities;
         private readonly UnmanagedDictionary<uint, KeyboardState> currentKeyboards;
         private readonly UnmanagedDictionary<uint, KeyboardState> lastKeyboards;
@@ -29,7 +28,6 @@ namespace InputDevices.Systems
             mouseEntities = new();
             currentMice = new();
             lastMice = new();
-            systems.Add(world.Address, this);
             Subscribe<InputUpdate>(Update);
 
             eventFilterFunction = &EventFilter;
@@ -202,12 +200,14 @@ namespace InputDevices.Systems
             if (type == SDL_EventType.MouseMotion || type == SDL_EventType.MouseWheel || type == SDL_EventType.MouseAdded ||
                 type == SDL_EventType.MouseRemoved || type == SDL_EventType.MouseButtonDown || type == SDL_EventType.MouseButtonUp)
             {
-                WindowDevicesSystems system = systems[worldAddress];
+                World world = new(worldAddress);
+                WindowDevicesSystems system = Get<WindowDevicesSystems>(world);
                 system.MouseEvent(type, sdlEvent->mdevice, sdlEvent->motion, sdlEvent->wheel, sdlEvent->button, sdlEvent->window.windowID);
             }
             else if (type == SDL_EventType.KeyboardAdded || type == SDL_EventType.KeyboardRemoved || type == SDL_EventType.KeyDown || type == SDL_EventType.KeyUp)
             {
-                WindowDevicesSystems system = systems[worldAddress];
+                World world = new(worldAddress);
+                WindowDevicesSystems system = Get<WindowDevicesSystems>(world);
                 system.KeyboardEvent(type, sdlEvent->kdevice, sdlEvent->key);
             }
 

@@ -5,7 +5,6 @@ using SharpHook;
 using SharpHook.Native;
 using Simulation;
 using System;
-using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
@@ -13,8 +12,6 @@ namespace InputDevices.Systems
 {
     public class GlobalKeyboardAndMouseSystem : SystemBase
     {
-        private static readonly Dictionary<nint, GlobalKeyboardAndMouseSystem> systems = new();
-
         private readonly ComponentQuery<IsGlobal, IsKeyboard> globalKeyboardQuery;
         private readonly ComponentQuery<IsGlobal, IsMouse> globalMouseQuery;
 
@@ -35,7 +32,6 @@ namespace InputDevices.Systems
 
         public unsafe GlobalKeyboardAndMouseSystem(World world) : base(world)
         {
-            systems.Add(world.Address, this);
             globalKeyboardQuery = new();
             globalMouseQuery = new();
             Subscribe<InputUpdate>(Update);
@@ -53,7 +49,6 @@ namespace InputDevices.Systems
 
             globalMouseQuery.Dispose();
             globalKeyboardQuery.Dispose();
-            systems.Remove(world.Address);
             base.Dispose();
         }
 
@@ -363,10 +358,17 @@ namespace InputDevices.Systems
         [UnmanagedCallersOnly]
         private static unsafe SDL_bool EventFilter(nint worldAddress, SDL_Event* sdlEvent)
         {
+            SDL_EventType type = sdlEvent->type;
+            if (type == SDL_EventType.WindowDestroyed)
+            {
+                return SDL_bool.SDL_TRUE;
+            }
+
             SDL_Window sdlWindow = SDL3.SDL3.SDL_GetWindowFromID(sdlEvent->window.windowID);
             if (sdlWindow.Value != default)
             {
-                GlobalKeyboardAndMouseSystem system = systems[worldAddress];
+                World world = new(worldAddress);
+                GlobalKeyboardAndMouseSystem system = Get<GlobalKeyboardAndMouseSystem>(world);
                 SDL_DisplayID displayId = SDL3.SDL3.SDL_GetDisplayForWindow(sdlWindow);
                 SDL_DisplayMode* displayMode = SDL3.SDL3.SDL_GetCurrentDisplayMode(displayId);
                 system.screenWidth = (uint)displayMode->w;
