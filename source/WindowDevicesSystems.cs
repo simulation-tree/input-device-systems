@@ -201,13 +201,13 @@ namespace InputDevices.Systems
                 type == SDL_EventType.MouseRemoved || type == SDL_EventType.MouseButtonDown || type == SDL_EventType.MouseButtonUp)
             {
                 World world = new(worldAddress);
-                WindowDevicesSystems system = Get<WindowDevicesSystems>(world);
+                WindowDevicesSystems system = GetFirst<WindowDevicesSystems>(world);
                 system.MouseEvent(type, sdlEvent->mdevice, sdlEvent->motion, sdlEvent->wheel, sdlEvent->button, sdlEvent->window.windowID);
             }
             else if (type == SDL_EventType.KeyboardAdded || type == SDL_EventType.KeyboardRemoved || type == SDL_EventType.KeyDown || type == SDL_EventType.KeyUp)
             {
                 World world = new(worldAddress);
-                WindowDevicesSystems system = Get<WindowDevicesSystems>(world);
+                WindowDevicesSystems system = GetFirst<WindowDevicesSystems>(world);
                 system.KeyboardEvent(type, sdlEvent->kdevice, sdlEvent->key);
             }
 

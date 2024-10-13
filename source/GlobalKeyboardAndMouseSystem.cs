@@ -368,7 +368,7 @@ namespace InputDevices.Systems
             if (sdlWindow.Value != default)
             {
                 World world = new(worldAddress);
-                GlobalKeyboardAndMouseSystem system = Get<GlobalKeyboardAndMouseSystem>(world);
+                GlobalKeyboardAndMouseSystem system = GetFirst<GlobalKeyboardAndMouseSystem>(world);
                 SDL_DisplayID displayId = SDL3.SDL3.SDL_GetDisplayForWindow(sdlWindow);
                 SDL_DisplayMode* displayMode = SDL3.SDL3.SDL_GetCurrentDisplayMode(displayId);
                 system.screenWidth = (uint)displayMode->w;
