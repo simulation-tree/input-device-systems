@@ -1,21 +1,21 @@
 ﻿using InputDevices.Components;
-using InputDevices.Events;
 using SDL3;
 using SharpHook;
 using SharpHook.Native;
 using Simulation;
+using Simulation.Functions;
 using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
 namespace InputDevices.Systems
 {
-    public class GlobalKeyboardAndMouseSystem : SystemBase
+    public struct GlobalKeyboardAndMouseSystem : ISystem
     {
         private readonly ComponentQuery<IsGlobal, IsKeyboard> globalKeyboardQuery;
         private readonly ComponentQuery<IsGlobal, IsMouse> globalMouseQuery;
 
-        private TaskPoolGlobalHook? kbmHook;
+        private GlobalHook kbmHook;
         private KeyboardState currentKeyboard = default;
         private MouseState currentMouse = default;
         private KeyboardState lastKeyboard = default;
@@ -28,37 +28,72 @@ namespace InputDevices.Systems
         private uint globalMouseEntity;
         private uint screenWidth;
         private uint screenHeight;
-        private unsafe readonly delegate* unmanaged<nint, SDL_Event*, SDL_bool> eventFilterFunction;
+        private World hostWorld;
+        private unsafe delegate* unmanaged<nint, SDL_Event*, SDL_bool> eventFilterFunction;
 
-        public unsafe GlobalKeyboardAndMouseSystem(World world) : base(world)
+        readonly unsafe InitializeFunction ISystem.Initialize => new(&Initialize);
+        readonly unsafe IterateFunction ISystem.Update => new(&Update);
+        readonly unsafe FinalizeFunction ISystem.Finalize => new(&Finalize);
+
+        [UnmanagedCallersOnly]
+        private static void Initialize(SystemContainer container, World world)
+        {
+            if (container.World == world)
+            {
+                ref GlobalKeyboardAndMouseSystem system = ref container.Read<GlobalKeyboardAndMouseSystem>();
+                system.Initialize(container.Simulator, world);
+            }
+        }
+
+        [UnmanagedCallersOnly]
+        private static void Update(SystemContainer container, World world, TimeSpan delta)
+        {
+            ref GlobalKeyboardAndMouseSystem system = ref container.Read<GlobalKeyboardAndMouseSystem>();
+            system.Update(world);
+        }
+
+        [UnmanagedCallersOnly]
+        private static void Finalize(SystemContainer container, World world)
+        {
+            if (container.World == world)
+            {
+                ref GlobalKeyboardAndMouseSystem system = ref container.Read<GlobalKeyboardAndMouseSystem>();
+                system.CleanUp(container.Simulator);
+            }
+        }
+
+        public GlobalKeyboardAndMouseSystem()
         {
             globalKeyboardQuery = new();
             globalMouseQuery = new();
-            Subscribe<InputUpdate>(Update);
-
-            eventFilterFunction = &EventFilter;
-            SDL3.SDL3.SDL_AddEventWatch(eventFilterFunction, world.Address);
         }
 
-        public override void Dispose()
+        private unsafe void Initialize(Simulator simulator, World hostWorld)
         {
-            if (kbmHook is not null)
+            this.hostWorld = hostWorld;
+            eventFilterFunction = &EventFilter;
+            SDL3.SDL3.SDL_AddEventWatch(eventFilterFunction, simulator.Address);
+        }
+
+        private unsafe readonly void CleanUp(Simulator simulator)
+        {
+            if (kbmHook != default)
             {
                 kbmHook.Dispose();
             }
 
             globalMouseQuery.Dispose();
             globalKeyboardQuery.Dispose();
-            base.Dispose();
+            SDL3.SDL3.SDL_RemoveEventWatch(eventFilterFunction, simulator.Address);
         }
 
-        private void Update(InputUpdate update)
+        private void Update(World world)
         {
-            FindGlobalDevices();
-            UpdateStates();
+            FindGlobalDevices(world);
+            UpdateStates(world);
         }
 
-        private void FindGlobalDevices()
+        private void FindGlobalDevices(World world)
         {
             globalKeyboardEntity = default;
             globalMouseEntity = default;
@@ -88,11 +123,11 @@ namespace InputDevices.Systems
                 }
             }
 
-            if (kbmHook is null)
+            if (kbmHook == default)
             {
                 if (globalKeyboardEntity != default || globalMouseEntity != default)
                 {
-                    kbmHook = InitializeGlobalHook();
+                    kbmHook = new(InitializeGlobalHook());
                 }
             }
         }
@@ -111,7 +146,7 @@ namespace InputDevices.Systems
             return kbmHook;
         }
 
-        private void UpdateStates()
+        private void UpdateStates(World world)
         {
             if (globalKeyboardEntity != default)
             {
@@ -180,7 +215,7 @@ namespace InputDevices.Systems
 
         private void OnKeyPressed(object? sender, KeyboardHookEventArgs e)
         {
-            if (world != default && e.Data.KeyCode != KeyCode.VcUndefined)
+            if (hostWorld != default && e.Data.KeyCode != KeyCode.VcUndefined)
             {
                 Keyboard.Button control = GetControl(e.Data.KeyCode);
                 if (!currentKeyboard[(uint)control])
@@ -192,7 +227,7 @@ namespace InputDevices.Systems
 
         private void OnKeyReleased(object? sender, KeyboardHookEventArgs e)
         {
-            if (world != default && e.Data.KeyCode != KeyCode.VcUndefined)
+            if (hostWorld != default && e.Data.KeyCode != KeyCode.VcUndefined)
             {
                 Keyboard.Button control = GetControl(e.Data.KeyCode);
                 if (currentKeyboard[(uint)control])
@@ -204,7 +239,7 @@ namespace InputDevices.Systems
 
         private void OnMousePressed(object? sender, MouseHookEventArgs e)
         {
-            if (world != default)
+            if (hostWorld != default)
             {
                 uint control = (uint)e.Data.Button;
                 if (!currentMouse[control])
@@ -216,7 +251,7 @@ namespace InputDevices.Systems
 
         private void OnMouseReleased(object? sender, MouseHookEventArgs e)
         {
-            if (world != default)
+            if (hostWorld != default)
             {
                 uint control = (uint)e.Data.Button;
                 if (currentMouse[control])
@@ -228,7 +263,7 @@ namespace InputDevices.Systems
 
         private void OnMouseDragged(object? sender, MouseHookEventArgs e)
         {
-            if (world != default)
+            if (hostWorld != default)
             {
                 mousePosition = new Vector2(e.Data.X, e.Data.Y);
                 mouseMoved = true;
@@ -237,7 +272,7 @@ namespace InputDevices.Systems
 
         private void OnMouseMoved(object? sender, MouseHookEventArgs e)
         {
-            if (world != default)
+            if (hostWorld != default)
             {
                 mousePosition = new Vector2(e.Data.X, e.Data.Y);
                 mouseMoved = true;
@@ -246,7 +281,7 @@ namespace InputDevices.Systems
 
         private void OnMouseWheel(object? sender, MouseWheelHookEventArgs e)
         {
-            if (world != default)
+            if (hostWorld != default)
             {
                 mouseScroll = new Vector2(e.Data.X, e.Data.Y);
                 mouseScrolled = true;
@@ -356,7 +391,7 @@ namespace InputDevices.Systems
         }
 
         [UnmanagedCallersOnly]
-        private static unsafe SDL_bool EventFilter(nint worldAddress, SDL_Event* sdlEvent)
+        private static unsafe SDL_bool EventFilter(nint simulatorAddress, SDL_Event* sdlEvent)
         {
             SDL_EventType type = sdlEvent->type;
             if (type == SDL_EventType.WindowDestroyed)
@@ -367,8 +402,8 @@ namespace InputDevices.Systems
             SDL_Window sdlWindow = SDL3.SDL3.SDL_GetWindowFromID(sdlEvent->window.windowID);
             if (sdlWindow.Value != default)
             {
-                World world = new(worldAddress);
-                GlobalKeyboardAndMouseSystem system = GetFirst<GlobalKeyboardAndMouseSystem>(world);
+                Simulator simulator = new(simulatorAddress);
+                ref GlobalKeyboardAndMouseSystem system = ref simulator.GetSystem<GlobalKeyboardAndMouseSystem>().Value;
                 SDL_DisplayID displayId = SDL3.SDL3.SDL_GetDisplayForWindow(sdlWindow);
                 SDL_DisplayMode* displayMode = SDL3.SDL3.SDL_GetCurrentDisplayMode(displayId);
                 system.screenWidth = (uint)displayMode->w;

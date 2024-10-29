@@ -1,8 +1,11 @@
 ﻿using InputDevices.Components;
-using InputDevices.Events;
+using Programs.System;
 using SDL3;
 using Simulation;
+using Simulation.Functions;
+using System;
 using System.Runtime.InteropServices;
+using Unmanaged;
 using Unmanaged.Collections;
 using static SDL3.SDL3;
 
@@ -10,17 +13,52 @@ namespace InputDevices.Systems
 {
     //todo: perhaps split this system into one for each type of device?
     //tho then that will mean 3 individual event watchers
-    public class WindowDevicesSystems : SystemBase
+    public struct WindowDevicesSystems : ISystem
     {
-        private readonly UnmanagedDictionary<uint, uint> keyboardEntities;
+        private readonly UnmanagedDictionary<uint, UnmanagedList<Keyboard>> keyboardEntities;
         private readonly UnmanagedDictionary<uint, KeyboardState> currentKeyboards;
         private readonly UnmanagedDictionary<uint, KeyboardState> lastKeyboards;
-        private readonly UnmanagedDictionary<uint, uint> mouseEntities;
+        private readonly UnmanagedDictionary<uint, UnmanagedList<Mouse>> mouseEntities;
         private readonly UnmanagedDictionary<uint, MouseState> currentMice;
         private readonly UnmanagedDictionary<uint, MouseState> lastMice;
-        private unsafe readonly delegate* unmanaged<nint, SDL_Event*, SDL_bool> eventFilterFunction;
+        private unsafe delegate* unmanaged<nint, SDL_Event*, SDL_bool> eventFilterFunction;
 
-        public unsafe WindowDevicesSystems(World world) : base(world)
+        readonly unsafe InitializeFunction ISystem.Initialize => new(&Initialize);
+        readonly unsafe IterateFunction ISystem.Update => new(&Update);
+        readonly unsafe FinalizeFunction ISystem.Finalize => new(&Finalize);
+
+        [UnmanagedCallersOnly]
+        private static void Initialize(SystemContainer container, World world)
+        {
+            if (container.World == world)
+            {
+                ref WindowDevicesSystems system = ref container.Read<WindowDevicesSystems>();
+                system.Initialize(container.Simulator);
+            }
+        }
+
+        [UnmanagedCallersOnly]
+        private static void Update(SystemContainer container, World world, TimeSpan delta)
+        {
+            if (container.World == world)
+            {
+                ref WindowDevicesSystems system = ref container.Read<WindowDevicesSystems>();
+                system.UpdateEntitiesToMatchDevices(container.Simulator);
+                system.AdvancePreviousStates();
+            }
+        }
+
+        [UnmanagedCallersOnly]
+        private static void Finalize(SystemContainer container, World world)
+        {
+            if (container.World == world)
+            {
+                ref WindowDevicesSystems system = ref container.Read<WindowDevicesSystems>();
+                system.CleanUp(container.Simulator);
+            }
+        }
+
+        public unsafe WindowDevicesSystems()
         {
             keyboardEntities = new();
             currentKeyboards = new();
@@ -28,52 +66,63 @@ namespace InputDevices.Systems
             mouseEntities = new();
             currentMice = new();
             lastMice = new();
-            Subscribe<InputUpdate>(Update);
-
-            eventFilterFunction = &EventFilter;
-            SDL_AddEventWatch(eventFilterFunction, world.Address);
         }
 
-        public unsafe override void Dispose()
+        private unsafe void Initialize(Simulator simulator)
         {
-            SDL_RemoveEventWatch(eventFilterFunction, world.Address);
+            eventFilterFunction = &EventFilter;
+            SDL_AddEventWatch(eventFilterFunction, simulator.Address);
+        }
+
+        private readonly unsafe void CleanUp(Simulator simulator)
+        {
+            SDL_RemoveEventWatch(eventFilterFunction, simulator.Address);
+            foreach (uint keyboardId in keyboardEntities.Keys)
+            {
+                keyboardEntities[keyboardId].Dispose();
+            }
+
+            foreach (uint mouseId in mouseEntities.Keys)
+            {
+                mouseEntities[mouseId].Dispose();
+            }
+
             mouseEntities.Dispose();
             currentMice.Dispose();
             lastMice.Dispose();
             keyboardEntities.Dispose();
             currentKeyboards.Dispose();
             lastKeyboards.Dispose();
-            base.Dispose();
         }
 
-        private void Update(InputUpdate update)
-        {
-            UpdateEntitiesToMatchDevices();
-            AdvancePreviousStates();
-        }
-
-        private void UpdateEntitiesToMatchDevices()
+        private readonly void UpdateEntitiesToMatchDevices(Simulator simulator)
         {
             foreach (uint keyboardId in currentKeyboards.Keys)
             {
-                Keyboard keyboard = GetOrCreateKeyboard(keyboardId);
-                ref KeyboardState state = ref keyboard.device.entity.GetComponentRef<IsKeyboard>().state;
-                ref KeyboardState lastState = ref keyboard.device.entity.GetComponentRef<LastKeyboardState>().value;
-                state = currentKeyboards[keyboardId];
-                lastState = lastKeyboards[keyboardId];
+                USpan<Keyboard> keyboards = GetOrCreateKeyboard(simulator, keyboardId);
+                foreach (ref Keyboard keyboard in keyboards)
+                {
+                    ref KeyboardState state = ref keyboard.AsEntity().GetComponentRef<IsKeyboard>().state;
+                    ref KeyboardState lastState = ref keyboard.AsEntity().GetComponentRef<LastKeyboardState>().value;
+                    state = currentKeyboards[keyboardId];
+                    lastState = lastKeyboards[keyboardId];
+                }
             }
 
             foreach (uint mouseId in currentMice.Keys)
             {
-                Mouse mouse = GetOrCreateMouse(mouseId);
-                ref MouseState state = ref mouse.device.entity.GetComponentRef<IsMouse>().state;
-                ref MouseState lastState = ref mouse.device.entity.GetComponentRef<LastMouseState>().value;
-                state = currentMice[mouseId];
-                lastState = lastMice[mouseId];
+                USpan<Mouse> mice = GetOrCreateMouse(simulator, mouseId);
+                foreach (ref Mouse mouse in mice)
+                {
+                    ref MouseState state = ref mouse.AsEntity().GetComponentRef<IsMouse>().state;
+                    ref MouseState lastState = ref mouse.AsEntity().GetComponentRef<LastMouseState>().value;
+                    state = currentMice[mouseId];
+                    lastState = lastMice[mouseId];
+                }
             }
         }
 
-        private void AdvancePreviousStates()
+        private readonly void AdvancePreviousStates()
         {
             foreach (uint keyboardId in currentKeyboards.Keys)
             {
@@ -92,7 +141,7 @@ namespace InputDevices.Systems
             }
         }
 
-        private void KeyboardEvent(SDL_EventType type, SDL_KeyboardDeviceEvent kdevice, SDL_KeyboardEvent key)
+        private readonly void KeyboardEvent(Simulator simulator, SDL_EventType type, SDL_KeyboardDeviceEvent kdevice, SDL_KeyboardEvent key)
         {
             uint keyboardId = (uint)kdevice.which;
             if (type == SDL_EventType.KeyboardRemoved)
@@ -123,7 +172,7 @@ namespace InputDevices.Systems
             }
         }
 
-        private void MouseEvent(SDL_EventType type, SDL_MouseDeviceEvent mdevice, SDL_MouseMotionEvent motion, SDL_MouseWheelEvent wheel, SDL_MouseButtonEvent button, SDL_WindowID windowId)
+        private readonly void MouseEvent(Simulator simulator, SDL_EventType type, SDL_MouseDeviceEvent mdevice, SDL_MouseMotionEvent motion, SDL_MouseWheelEvent wheel, SDL_MouseButtonEvent button, SDL_WindowID windowId)
         {
             uint mouseId = (uint)mdevice.which;
             if (type == SDL_EventType.MouseRemoved)
@@ -167,48 +216,56 @@ namespace InputDevices.Systems
             }
         }
 
-        private Keyboard GetOrCreateKeyboard(uint keyboardId)
+        private readonly USpan<Keyboard> GetOrCreateKeyboard(Simulator simulator, uint keyboardId)
         {
-            if (!keyboardEntities.TryGetValue(keyboardId, out uint keyboardEntity))
+            if (!keyboardEntities.TryGetValue(keyboardId, out UnmanagedList<Keyboard> keyboards))
             {
-                keyboardEntity = world.CreateEntity();
-                world.AddComponent(keyboardEntity, new IsKeyboard());
-                world.AddComponent(keyboardEntity, new LastKeyboardState());
-                keyboardEntities.Add(keyboardId, keyboardEntity);
+                keyboards = new();
+                foreach (ProgramContainer program in simulator.Programs)
+                {
+                    Keyboard keyboard = new(program.programWorld);
+                    keyboards.Add(keyboard);
+                }
+
+                keyboardEntities.Add(keyboardId, keyboards);
             }
 
-            return new Keyboard(world, keyboardEntity);
+            return keyboards.AsSpan();
         }
 
-        private Mouse GetOrCreateMouse(uint mouseId)
+        private readonly USpan<Mouse> GetOrCreateMouse(Simulator simulator, uint mouseId)
         {
-            if (!mouseEntities.TryGetValue(mouseId, out uint mouseEntity))
+            if (!mouseEntities.TryGetValue(mouseId, out UnmanagedList<Mouse> mice))
             {
-                mouseEntity = world.CreateEntity();
-                world.AddComponent(mouseEntity, new IsMouse());
-                world.AddComponent(mouseEntity, new LastMouseState());
-                mouseEntities.Add(mouseId, mouseEntity);
+                mice = new();
+                foreach (ProgramContainer program in simulator.Programs)
+                {
+                    Mouse mouse = new(program.programWorld);
+                    mice.Add(mouse);
+                }
+
+                mouseEntities.Add(mouseId, mice);
             }
 
-            return new Mouse(world, mouseEntity);
+            return mice.AsSpan();
         }
 
         [UnmanagedCallersOnly]
-        private static unsafe SDL_bool EventFilter(nint worldAddress, SDL_Event* sdlEvent)
+        private static unsafe SDL_bool EventFilter(nint simulatorAddress, SDL_Event* sdlEvent)
         {
             SDL_EventType type = sdlEvent->type;
             if (type == SDL_EventType.MouseMotion || type == SDL_EventType.MouseWheel || type == SDL_EventType.MouseAdded ||
                 type == SDL_EventType.MouseRemoved || type == SDL_EventType.MouseButtonDown || type == SDL_EventType.MouseButtonUp)
             {
-                World world = new(worldAddress);
-                WindowDevicesSystems system = GetFirst<WindowDevicesSystems>(world);
-                system.MouseEvent(type, sdlEvent->mdevice, sdlEvent->motion, sdlEvent->wheel, sdlEvent->button, sdlEvent->window.windowID);
+                Simulator simulator = new(simulatorAddress);
+                ref WindowDevicesSystems system = ref simulator.GetSystem<WindowDevicesSystems>().Value;
+                system.MouseEvent(simulator, type, sdlEvent->mdevice, sdlEvent->motion, sdlEvent->wheel, sdlEvent->button, sdlEvent->window.windowID);
             }
             else if (type == SDL_EventType.KeyboardAdded || type == SDL_EventType.KeyboardRemoved || type == SDL_EventType.KeyDown || type == SDL_EventType.KeyUp)
             {
-                World world = new(worldAddress);
-                WindowDevicesSystems system = GetFirst<WindowDevicesSystems>(world);
-                system.KeyboardEvent(type, sdlEvent->kdevice, sdlEvent->key);
+                Simulator simulator = new(simulatorAddress);
+                ref WindowDevicesSystems system = ref simulator.GetSystem<WindowDevicesSystems>().Value;
+                system.KeyboardEvent(simulator, type, sdlEvent->kdevice, sdlEvent->key);
             }
 
             return SDL_bool.SDL_TRUE;
