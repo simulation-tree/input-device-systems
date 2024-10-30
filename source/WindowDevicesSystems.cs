@@ -1,4 +1,5 @@
-﻿using InputDevices.Components;
+﻿using Collections;
+using InputDevices.Components;
 using Programs.System;
 using SDL3;
 using Simulation;
@@ -6,7 +7,6 @@ using Simulation.Functions;
 using System;
 using System.Runtime.InteropServices;
 using Unmanaged;
-using Unmanaged.Collections;
 using static SDL3.SDL3;
 
 namespace InputDevices.Systems
@@ -15,12 +15,12 @@ namespace InputDevices.Systems
     //tho then that will mean 3 individual event watchers
     public struct WindowDevicesSystems : ISystem
     {
-        private readonly UnmanagedDictionary<uint, UnmanagedList<Keyboard>> keyboardEntities;
-        private readonly UnmanagedDictionary<uint, KeyboardState> currentKeyboards;
-        private readonly UnmanagedDictionary<uint, KeyboardState> lastKeyboards;
-        private readonly UnmanagedDictionary<uint, UnmanagedList<Mouse>> mouseEntities;
-        private readonly UnmanagedDictionary<uint, MouseState> currentMice;
-        private readonly UnmanagedDictionary<uint, MouseState> lastMice;
+        private readonly Dictionary<uint, List<Keyboard>> keyboardEntities;
+        private readonly Dictionary<uint, KeyboardState> currentKeyboards;
+        private readonly Dictionary<uint, KeyboardState> lastKeyboards;
+        private readonly Dictionary<uint, List<Mouse>> mouseEntities;
+        private readonly Dictionary<uint, MouseState> currentMice;
+        private readonly Dictionary<uint, MouseState> lastMice;
         private unsafe delegate* unmanaged<nint, SDL_Event*, SDL_bool> eventFilterFunction;
 
         readonly unsafe InitializeFunction ISystem.Initialize => new(&Initialize);
@@ -218,7 +218,7 @@ namespace InputDevices.Systems
 
         private readonly USpan<Keyboard> GetOrCreateKeyboard(Simulator simulator, uint keyboardId)
         {
-            if (!keyboardEntities.TryGetValue(keyboardId, out UnmanagedList<Keyboard> keyboards))
+            if (!keyboardEntities.TryGetValue(keyboardId, out List<Keyboard> keyboards))
             {
                 keyboards = new();
                 foreach (ProgramContainer program in simulator.Programs)
@@ -235,7 +235,7 @@ namespace InputDevices.Systems
 
         private readonly USpan<Mouse> GetOrCreateMouse(Simulator simulator, uint mouseId)
         {
-            if (!mouseEntities.TryGetValue(mouseId, out UnmanagedList<Mouse> mice))
+            if (!mouseEntities.TryGetValue(mouseId, out List<Mouse> mice))
             {
                 mice = new();
                 foreach (ProgramContainer program in simulator.Programs)
