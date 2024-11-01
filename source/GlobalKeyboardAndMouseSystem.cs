@@ -29,10 +29,10 @@ namespace InputDevices.Systems
         private uint screenWidth;
         private uint screenHeight;
         private World hostWorld;
-        private unsafe delegate* unmanaged<nint, SDL_Event*, SDL_bool> eventFilterFunction;
+        private unsafe delegate* unmanaged<nint, SDL_Event*, bool> eventFilterFunction;
 
         readonly unsafe InitializeFunction ISystem.Initialize => new(&Initialize);
-        readonly unsafe IterateFunction ISystem.Update => new(&Update);
+        readonly unsafe IterateFunction ISystem.Iterate => new(&Update);
         readonly unsafe FinalizeFunction ISystem.Finalize => new(&Finalize);
 
         [UnmanagedCallersOnly]
@@ -71,7 +71,8 @@ namespace InputDevices.Systems
         private unsafe void Initialize(Simulator simulator, World hostWorld)
         {
             this.hostWorld = hostWorld;
-            eventFilterFunction = &EventFilter;
+            delegate* unmanaged<nint, SDL_Event*, SDL_bool> del = &EventFilter;
+            eventFilterFunction = (delegate* unmanaged<nint, SDL_Event*, bool>)(void*)del;
             SDL3.SDL3.SDL_AddEventWatch(eventFilterFunction, simulator.Address);
         }
 
@@ -394,20 +395,18 @@ namespace InputDevices.Systems
         private static unsafe SDL_bool EventFilter(nint simulatorAddress, SDL_Event* sdlEvent)
         {
             SDL_EventType type = sdlEvent->type;
-            if (type == SDL_EventType.WindowDestroyed)
+            if (type != SDL_EventType.WindowDestroyed)
             {
-                return SDL_bool.SDL_TRUE;
-            }
-
-            SDL_Window sdlWindow = SDL3.SDL3.SDL_GetWindowFromID(sdlEvent->window.windowID);
-            if (sdlWindow.Value != default)
-            {
-                Simulator simulator = new(simulatorAddress);
-                ref GlobalKeyboardAndMouseSystem system = ref simulator.GetSystem<GlobalKeyboardAndMouseSystem>().Value;
-                SDL_DisplayID displayId = SDL3.SDL3.SDL_GetDisplayForWindow(sdlWindow);
-                SDL_DisplayMode* displayMode = SDL3.SDL3.SDL_GetCurrentDisplayMode(displayId);
-                system.screenWidth = (uint)displayMode->w;
-                system.screenHeight = (uint)displayMode->h;
+                SDL_Window sdlWindow = SDL3.SDL3.SDL_GetWindowFromID(sdlEvent->window.windowID);
+                if (sdlWindow.Value != default)
+                {
+                    Simulator simulator = new(simulatorAddress);
+                    ref GlobalKeyboardAndMouseSystem system = ref simulator.GetSystem<GlobalKeyboardAndMouseSystem>().Value;
+                    SDL_DisplayID displayId = SDL3.SDL3.SDL_GetDisplayForWindow(sdlWindow);
+                    SDL_DisplayMode* displayMode = SDL3.SDL3.SDL_GetCurrentDisplayMode(displayId);
+                    system.screenWidth = (uint)displayMode->w;
+                    system.screenHeight = (uint)displayMode->h;
+                }
             }
 
             return SDL_bool.SDL_TRUE;

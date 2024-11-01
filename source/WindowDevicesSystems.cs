@@ -21,10 +21,10 @@ namespace InputDevices.Systems
         private readonly Dictionary<uint, List<Mouse>> mouseEntities;
         private readonly Dictionary<uint, MouseState> currentMice;
         private readonly Dictionary<uint, MouseState> lastMice;
-        private unsafe delegate* unmanaged<nint, SDL_Event*, SDL_bool> eventFilterFunction;
+        private unsafe delegate* unmanaged<nint, SDL_Event*, bool> eventFilterFunction;
 
         readonly unsafe InitializeFunction ISystem.Initialize => new(&Initialize);
-        readonly unsafe IterateFunction ISystem.Update => new(&Update);
+        readonly unsafe IterateFunction ISystem.Iterate => new(&Update);
         readonly unsafe FinalizeFunction ISystem.Finalize => new(&Finalize);
 
         [UnmanagedCallersOnly]
@@ -70,7 +70,8 @@ namespace InputDevices.Systems
 
         private unsafe void Initialize(Simulator simulator)
         {
-            eventFilterFunction = &EventFilter;
+            delegate* unmanaged<nint, SDL_Event*, SDL_bool> del = &EventFilter;
+            eventFilterFunction = (delegate* unmanaged<nint, SDL_Event*, bool>)(void*)del;
             SDL_AddEventWatch(eventFilterFunction, simulator.Address);
         }
 
