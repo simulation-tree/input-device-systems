@@ -6,6 +6,7 @@ using Simulation;
 using Simulation.Functions;
 using System;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace InputDevices.Systems
@@ -29,7 +30,7 @@ namespace InputDevices.Systems
         private uint screenWidth;
         private uint screenHeight;
         private World hostWorld;
-        private unsafe delegate* unmanaged<nint, SDL_Event*, bool> eventFilterFunction;
+        private unsafe delegate* unmanaged[Cdecl]<nint, SDL_Event*, SDLBool> eventFilterFunction;
 
         readonly unsafe InitializeFunction ISystem.Initialize => new(&Initialize);
         readonly unsafe IterateFunction ISystem.Iterate => new(&Update);
@@ -71,8 +72,7 @@ namespace InputDevices.Systems
         private unsafe void Initialize(Simulator simulator, World hostWorld)
         {
             this.hostWorld = hostWorld;
-            delegate* unmanaged<nint, SDL_Event*, SDL_bool> del = &EventFilter;
-            eventFilterFunction = (delegate* unmanaged<nint, SDL_Event*, bool>)(void*)del;
+            eventFilterFunction = &EventFilter;
             SDL3.SDL3.SDL_AddEventWatch(eventFilterFunction, simulator.Address);
         }
 
@@ -391,8 +391,8 @@ namespace InputDevices.Systems
             };
         }
 
-        [UnmanagedCallersOnly]
-        private static unsafe SDL_bool EventFilter(nint simulatorAddress, SDL_Event* sdlEvent)
+        [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+        private static unsafe SDLBool EventFilter(nint simulatorAddress, SDL_Event* sdlEvent)
         {
             SDL_EventType type = sdlEvent->type;
             if (type != SDL_EventType.WindowDestroyed)
@@ -409,7 +409,7 @@ namespace InputDevices.Systems
                 }
             }
 
-            return SDL_bool.SDL_TRUE;
+            return true;
         }
     }
 }

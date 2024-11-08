@@ -5,6 +5,7 @@ using SDL3;
 using Simulation;
 using Simulation.Functions;
 using System;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Unmanaged;
 using static SDL3.SDL3;
@@ -21,7 +22,7 @@ namespace InputDevices.Systems
         private readonly Dictionary<uint, List<Mouse>> mouseEntities;
         private readonly Dictionary<uint, MouseState> currentMice;
         private readonly Dictionary<uint, MouseState> lastMice;
-        private unsafe delegate* unmanaged<nint, SDL_Event*, bool> eventFilterFunction;
+        private unsafe delegate* unmanaged[Cdecl]<nint, SDL_Event*, SDLBool> eventFilterFunction;
 
         readonly unsafe InitializeFunction ISystem.Initialize => new(&Initialize);
         readonly unsafe IterateFunction ISystem.Iterate => new(&Update);
@@ -70,8 +71,7 @@ namespace InputDevices.Systems
 
         private unsafe void Initialize(Simulator simulator)
         {
-            delegate* unmanaged<nint, SDL_Event*, SDL_bool> del = &EventFilter;
-            eventFilterFunction = (delegate* unmanaged<nint, SDL_Event*, bool>)(void*)del;
+            eventFilterFunction = &EventFilter;
             SDL_AddEventWatch(eventFilterFunction, simulator.Address);
         }
 
@@ -251,8 +251,8 @@ namespace InputDevices.Systems
             return mice.AsSpan();
         }
 
-        [UnmanagedCallersOnly]
-        private static unsafe SDL_bool EventFilter(nint simulatorAddress, SDL_Event* sdlEvent)
+        [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+        private static unsafe SDLBool EventFilter(nint simulatorAddress, SDL_Event* sdlEvent)
         {
             SDL_EventType type = sdlEvent->type;
             if (type == SDL_EventType.MouseMotion || type == SDL_EventType.MouseWheel || type == SDL_EventType.MouseAdded ||
@@ -269,7 +269,7 @@ namespace InputDevices.Systems
                 system.KeyboardEvent(simulator, type, sdlEvent->kdevice, sdlEvent->key);
             }
 
-            return SDL_bool.SDL_TRUE;
+            return true;
         }
     }
 }
