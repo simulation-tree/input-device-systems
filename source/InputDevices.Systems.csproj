@@ -27,7 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\input-devices\source\Input Devices.csproj" />
+    <ProjectReference Include="..\..\input-devices\source\InputDevices.csproj" />
     <ProjectReference Include="..\..\simulation\source\Simulation.csproj" />
   </ItemGroup>
 

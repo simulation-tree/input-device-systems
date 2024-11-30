@@ -1,6 +1,5 @@
 ﻿using Collections;
 using InputDevices.Components;
-using Programs.System;
 using SDL3;
 using Simulation;
 using Simulation.Functions;
@@ -8,6 +7,7 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Unmanaged;
+using Worlds;
 using static SDL3.SDL3;
 
 namespace InputDevices.Systems
@@ -24,12 +24,12 @@ namespace InputDevices.Systems
         private readonly Dictionary<uint, MouseState> lastMice;
         private unsafe delegate* unmanaged[Cdecl]<nint, SDL_Event*, SDLBool> eventFilterFunction;
 
-        readonly unsafe InitializeFunction ISystem.Initialize => new(&Initialize);
-        readonly unsafe IterateFunction ISystem.Iterate => new(&Update);
-        readonly unsafe FinalizeFunction ISystem.Finalize => new(&Finalize);
+        readonly unsafe StartSystem ISystem.Start => new(&Start);
+        readonly unsafe UpdateSystem ISystem.Update => new(&Update);
+        readonly unsafe FinishSystem ISystem.Finish => new(&Finish);
 
         [UnmanagedCallersOnly]
-        private static void Initialize(SystemContainer container, World world)
+        private static void Start(SystemContainer container, World world)
         {
             if (container.World == world)
             {
@@ -50,7 +50,7 @@ namespace InputDevices.Systems
         }
 
         [UnmanagedCallersOnly]
-        private static void Finalize(SystemContainer container, World world)
+        private static void Finish(SystemContainer container, World world)
         {
             if (container.World == world)
             {
@@ -156,8 +156,8 @@ namespace InputDevices.Systems
             {
                 if (!currentKeyboards.ContainsKey(keyboardId))
                 {
-                    currentKeyboards.Add(keyboardId, new());
-                    lastKeyboards.Add(keyboardId, new());
+                    currentKeyboards.TryAdd(keyboardId, new());
+                    lastKeyboards.TryAdd(keyboardId, new());
                 }
 
                 uint control = (uint)key.scancode;
@@ -187,8 +187,8 @@ namespace InputDevices.Systems
             {
                 if (!currentMice.ContainsKey(mouseId))
                 {
-                    currentMice.Add(mouseId, new());
-                    lastMice.Add(mouseId, new());
+                    currentMice.TryAdd(mouseId, new());
+                    lastMice.TryAdd(mouseId, new());
                 }
 
                 ref MouseState currentState = ref currentMice[mouseId];
@@ -224,11 +224,11 @@ namespace InputDevices.Systems
                 keyboards = new();
                 foreach (ProgramContainer program in simulator.Programs)
                 {
-                    Keyboard keyboard = new(program.programWorld);
+                    Keyboard keyboard = new(program.world);
                     keyboards.Add(keyboard);
                 }
 
-                keyboardEntities.Add(keyboardId, keyboards);
+                keyboardEntities.TryAdd(keyboardId, keyboards);
             }
 
             return keyboards.AsSpan();
@@ -241,11 +241,11 @@ namespace InputDevices.Systems
                 mice = new();
                 foreach (ProgramContainer program in simulator.Programs)
                 {
-                    Mouse mouse = new(program.programWorld);
+                    Mouse mouse = new(program.world);
                     mice.Add(mouse);
                 }
 
-                mouseEntities.Add(mouseId, mice);
+                mouseEntities.TryAdd(mouseId, mice);
             }
 
             return mice.AsSpan();
