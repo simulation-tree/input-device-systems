@@ -5,6 +5,7 @@ using SharpHook.Native;
 using Simulation;
 using Simulation.Functions;
 using System;
+using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -14,18 +15,19 @@ namespace InputDevices.Systems
 {
     public struct GlobalKeyboardAndMouseSystem : ISystem
     {
+        private static bool globalMouseMoved;
+        private static bool globalMouseScrolled;
+        private static KeyboardState globalCurrentKeyboard = default;
+        private static KeyboardState globalLastKeyboard = default;
+        private static MouseState globalCurrentMouse = default;
+        private static MouseState globalLastMouse = default;
+        private static Vector2 globalMousePosition;
+        private static Vector2 globalMouseScroll;
+
         private readonly ComponentQuery<IsGlobal, IsKeyboard> globalKeyboardQuery;
         private readonly ComponentQuery<IsGlobal, IsMouse> globalMouseQuery;
 
         private GlobalHook kbmHook;
-        private KeyboardState currentKeyboard = default;
-        private MouseState currentMouse = default;
-        private KeyboardState lastKeyboard = default;
-        private MouseState lastMouse = default;
-        private bool mouseMoved;
-        private bool mouseScrolled;
-        private Vector2 mousePosition;
-        private Vector2 mouseScroll;
         private uint globalKeyboardEntity;
         private uint globalMouseEntity;
         private uint screenWidth;
@@ -130,6 +132,7 @@ namespace InputDevices.Systems
                 if (globalKeyboardEntity != default || globalMouseEntity != default)
                 {
                     kbmHook = new(InitializeGlobalHook());
+                    Trace.WriteLine("Global keyboard and mouse hook initialized");
                 }
             }
         }
@@ -156,13 +159,13 @@ namespace InputDevices.Systems
                 bool keyboardUpdated = false;
                 for (uint i = 0; i < KeyboardState.MaxKeyCount; i++)
                 {
-                    bool next = currentKeyboard[i];
-                    bool previous = lastKeyboard[i];
+                    bool next = globalCurrentKeyboard[i];
+                    bool previous = globalLastKeyboard[i];
                     ButtonState state = keyboard.GetButtonState(i);
                     ButtonState current = new(previous, next);
                     if (state != current)
                     {
-                        lastKeyboard[i] = next;
+                        globalLastKeyboard[i] = next;
                         keyboard.SetButtonState(i, current);
                         keyboardUpdated = true;
                     }
@@ -183,37 +186,40 @@ namespace InputDevices.Systems
                 bool mouseUpdated = false;
                 for (uint i = 0; i < MouseState.MaxButtonCount; i++)
                 {
-                    bool next = currentMouse[i];
-                    bool previous = lastMouse[i];
+                    bool next = globalCurrentMouse[i];
+                    bool previous = globalLastMouse[i];
                     ButtonState state = mouse.GetButtonState(i);
                     ButtonState current = new(previous, next);
                     if (state != current)
                     {
-                        lastMouse[i] = next;
+                        globalLastMouse[i] = next;
                         mouse.SetButtonState(i, current);
                         mouseUpdated = true;
                     }
                 }
 
-                if (mouseMoved)
+                if (globalMouseMoved)
                 {
-                    mouse.Position = mousePosition;
+                    mouse.Position = globalMousePosition;
+                    mouseUpdated = true;
                 }
 
-                if (mouseScrolled)
+                if (globalMouseScrolled)
                 {
-                    mouse.Scroll = mouseScroll;
+                    mouse.Scroll = globalMouseScroll;
+                    mouseUpdated = true;
                 }
 
-                if (mouseUpdated || mouseMoved || mouseScrolled)
+                if (mouseUpdated)
                 {
                     DateTimeOffset when = DateTimeOffset.Now;
                     TimeSpan timestamp = when - DateTimeOffset.UnixEpoch;
                     InputDevice device = mouse;
                     device.SetUpdateTime(timestamp);
-                    mouseMoved = false;
-                    mouseScrolled = false;
                 }
+
+                globalMouseMoved = false;
+                globalMouseScrolled = false;
             }
         }
 
@@ -222,9 +228,9 @@ namespace InputDevices.Systems
             if (hostWorld != default && e.Data.KeyCode != KeyCode.VcUndefined)
             {
                 Keyboard.Button control = GetControl(e.Data.KeyCode);
-                if (!currentKeyboard[(uint)control])
+                if (!globalCurrentKeyboard[(uint)control])
                 {
-                    currentKeyboard[(uint)control] = true;
+                    globalCurrentKeyboard[(uint)control] = true;
                 }
             }
         }
@@ -234,9 +240,9 @@ namespace InputDevices.Systems
             if (hostWorld != default && e.Data.KeyCode != KeyCode.VcUndefined)
             {
                 Keyboard.Button control = GetControl(e.Data.KeyCode);
-                if (currentKeyboard[(uint)control])
+                if (globalCurrentKeyboard[(uint)control])
                 {
-                    currentKeyboard[(uint)control] = false;
+                    globalCurrentKeyboard[(uint)control] = false;
                 }
             }
         }
@@ -246,9 +252,9 @@ namespace InputDevices.Systems
             if (hostWorld != default)
             {
                 uint control = (uint)e.Data.Button;
-                if (!currentMouse[control])
+                if (!globalCurrentMouse[control])
                 {
-                    currentMouse[control] = true;
+                    globalCurrentMouse[control] = true;
                 }
             }
         }
@@ -258,9 +264,9 @@ namespace InputDevices.Systems
             if (hostWorld != default)
             {
                 uint control = (uint)e.Data.Button;
-                if (currentMouse[control])
+                if (globalCurrentMouse[control])
                 {
-                    currentMouse[control] = false;
+                    globalCurrentMouse[control] = false;
                 }
             }
         }
@@ -269,8 +275,8 @@ namespace InputDevices.Systems
         {
             if (hostWorld != default)
             {
-                mousePosition = new Vector2(e.Data.X, e.Data.Y);
-                mouseMoved = true;
+                globalMousePosition = new Vector2(e.Data.X, e.Data.Y);
+                globalMouseMoved = true;
             }
         }
 
@@ -278,8 +284,8 @@ namespace InputDevices.Systems
         {
             if (hostWorld != default)
             {
-                mousePosition = new Vector2(e.Data.X, e.Data.Y);
-                mouseMoved = true;
+                globalMousePosition = new Vector2(e.Data.X, e.Data.Y);
+                globalMouseMoved = true;
             }
         }
 
@@ -287,8 +293,8 @@ namespace InputDevices.Systems
         {
             if (hostWorld != default)
             {
-                mouseScroll = new Vector2(e.Data.X, e.Data.Y);
-                mouseScrolled = true;
+                globalMouseScroll = new Vector2(e.Data.X, e.Data.Y);
+                globalMouseScrolled = true;
             }
         }
 
