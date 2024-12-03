@@ -3,7 +3,6 @@ using SDL3;
 using SharpHook;
 using SharpHook.Native;
 using Simulation;
-using Simulation.Functions;
 using System;
 using System.Diagnostics;
 using System.Numerics;
@@ -13,7 +12,7 @@ using Worlds;
 
 namespace InputDevices.Systems
 {
-    public struct GlobalKeyboardAndMouseSystem : ISystem
+    public partial struct GlobalKeyboardAndMouseSystem : ISystem
     {
         private static bool globalMouseMoved;
         private static bool globalMouseScrolled;
@@ -35,34 +34,24 @@ namespace InputDevices.Systems
         private World hostWorld;
         private unsafe delegate* unmanaged[Cdecl]<nint, SDL_Event*, SDLBool> eventFilterFunction;
 
-        readonly unsafe StartSystem ISystem.Start => new(&Start);
-        readonly unsafe UpdateSystem ISystem.Update => new(&Update);
-        readonly unsafe FinishSystem ISystem.Finish => new(&Finish);
-
-        [UnmanagedCallersOnly]
-        private static void Start(SystemContainer container, World world)
+        void ISystem.Start(in SystemContainer systemContainer, in World world)
         {
-            if (container.World == world)
+            if (systemContainer.World == world)
             {
-                ref GlobalKeyboardAndMouseSystem system = ref container.Read<GlobalKeyboardAndMouseSystem>();
-                system.Initialize(container.Simulator, world);
+                Initialize(systemContainer.Simulator, world);
             }
         }
 
-        [UnmanagedCallersOnly]
-        private static void Update(SystemContainer container, World world, TimeSpan delta)
+        void ISystem.Update(in SystemContainer systemContainer, in World world, in TimeSpan delta)
         {
-            ref GlobalKeyboardAndMouseSystem system = ref container.Read<GlobalKeyboardAndMouseSystem>();
-            system.Update(world);
+            Update(world);
         }
 
-        [UnmanagedCallersOnly]
-        private static void Finish(SystemContainer container, World world)
+        void ISystem.Finish(in SystemContainer systemContainer, in World world)
         {
-            if (container.World == world)
+            if (systemContainer.World == world)
             {
-                ref GlobalKeyboardAndMouseSystem system = ref container.Read<GlobalKeyboardAndMouseSystem>();
-                system.CleanUp(container.Simulator);
+                CleanUp(systemContainer.Simulator);
             }
         }
 

@@ -2,7 +2,6 @@
 using InputDevices.Components;
 using SDL3;
 using Simulation;
-using Simulation.Functions;
 using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -14,7 +13,7 @@ namespace InputDevices.Systems
 {
     //todo: perhaps split this system into one for each type of device?
     //tho then that will mean 3 individual event watchers
-    public struct WindowDevicesSystems : ISystem
+    public partial struct WindowDevicesSystems : ISystem
     {
         private readonly Dictionary<uint, List<Keyboard>> keyboardEntities;
         private readonly Dictionary<uint, KeyboardState> currentKeyboards;
@@ -24,38 +23,28 @@ namespace InputDevices.Systems
         private readonly Dictionary<uint, MouseState> lastMice;
         private unsafe delegate* unmanaged[Cdecl]<nint, SDL_Event*, SDLBool> eventFilterFunction;
 
-        readonly unsafe StartSystem ISystem.Start => new(&Start);
-        readonly unsafe UpdateSystem ISystem.Update => new(&Update);
-        readonly unsafe FinishSystem ISystem.Finish => new(&Finish);
-
-        [UnmanagedCallersOnly]
-        private static void Start(SystemContainer container, World world)
+        void ISystem.Start(in SystemContainer systemContainer, in World world)
         {
-            if (container.World == world)
+            if (systemContainer.World == world)
             {
-                ref WindowDevicesSystems system = ref container.Read<WindowDevicesSystems>();
-                system.Initialize(container.Simulator);
+                Initialize(systemContainer.Simulator);
             }
         }
 
-        [UnmanagedCallersOnly]
-        private static void Update(SystemContainer container, World world, TimeSpan delta)
+        void ISystem.Update(in SystemContainer systemContainer, in World world, in TimeSpan delta)
         {
-            if (container.World == world)
+            if (systemContainer.World == world)
             {
-                ref WindowDevicesSystems system = ref container.Read<WindowDevicesSystems>();
-                system.UpdateEntitiesToMatchDevices(container.Simulator);
-                system.AdvancePreviousStates();
+                UpdateEntitiesToMatchDevices(systemContainer.Simulator);
+                AdvancePreviousStates();
             }
         }
 
-        [UnmanagedCallersOnly]
-        private static void Finish(SystemContainer container, World world)
+        void ISystem.Finish(in SystemContainer systemContainer, in World world)
         {
-            if (container.World == world)
+            if (systemContainer.World == world)
             {
-                ref WindowDevicesSystems system = ref container.Read<WindowDevicesSystems>();
-                system.CleanUp(container.Simulator);
+                CleanUp(systemContainer.Simulator);
             }
         }
 
