@@ -23,22 +23,19 @@ namespace InputDevices.Systems
         private static Vector2 globalMousePosition;
         private static Vector2 globalMouseScroll;
 
-        private readonly ComponentQuery<IsGlobal, IsKeyboard> globalKeyboardQuery;
-        private readonly ComponentQuery<IsGlobal, IsMouse> globalMouseQuery;
-
+        private readonly Simulator simulator;
         private GlobalHook kbmHook;
         private uint globalKeyboardEntity;
         private uint globalMouseEntity;
         private uint screenWidth;
         private uint screenHeight;
-        private World hostWorld;
         private unsafe delegate* unmanaged[Cdecl]<nint, SDL_Event*, SDLBool> eventFilterFunction;
 
         void ISystem.Start(in SystemContainer systemContainer, in World world)
         {
             if (systemContainer.World == world)
             {
-                Initialize(systemContainer.Simulator, world);
+                systemContainer.allocation.Write(new GlobalKeyboardAndMouseSystem(systemContainer.Simulator));
             }
         }
 
@@ -49,34 +46,22 @@ namespace InputDevices.Systems
 
         void ISystem.Finish(in SystemContainer systemContainer, in World world)
         {
-            if (systemContainer.World == world)
-            {
-                CleanUp(systemContainer.Simulator);
-            }
         }
 
-        public GlobalKeyboardAndMouseSystem()
+        private unsafe GlobalKeyboardAndMouseSystem(Simulator simulator)
         {
-            globalKeyboardQuery = new();
-            globalMouseQuery = new();
-        }
-
-        private unsafe void Initialize(Simulator simulator, World hostWorld)
-        {
-            this.hostWorld = hostWorld;
+            this.simulator = simulator;
             eventFilterFunction = &EventFilter;
             SDL3.SDL3.SDL_AddEventWatch(eventFilterFunction, simulator.Address);
         }
 
-        private unsafe readonly void CleanUp(Simulator simulator)
+        unsafe void IDisposable.Dispose()
         {
             if (kbmHook != default)
             {
                 kbmHook.Dispose();
             }
 
-            globalMouseQuery.Dispose();
-            globalKeyboardQuery.Dispose();
             SDL3.SDL3.SDL_RemoveEventWatch(eventFilterFunction, simulator.Address);
         }
 
@@ -90,30 +75,26 @@ namespace InputDevices.Systems
         {
             globalKeyboardEntity = default;
             globalMouseEntity = default;
-            globalKeyboardQuery.Update(world);
-            foreach (var r in globalKeyboardQuery)
+            ComponentQuery<IsKeyboard, IsGlobal> globalKeyboardsQuery = new(world);
+            foreach (var r in globalKeyboardsQuery)
             {
-                if (globalKeyboardEntity == default)
+                if (globalKeyboardEntity != default)
                 {
-                    globalKeyboardEntity = r.entity;
+                    throw new InvalidOperationException("Multiple global keyboard entities found");
                 }
-                else
-                {
-                    throw new InvalidOperationException("Multiple global keyboards detected");
-                }
+
+                globalKeyboardEntity = r.entity;
             }
 
-            globalMouseQuery.Update(world);
-            foreach (var r in globalMouseQuery)
+            ComponentQuery<IsMouse, IsGlobal> globalMiceQuery = new(world);
+            foreach (var r in globalMiceQuery)
             {
-                if (globalMouseEntity == default)
+                if (globalMouseEntity != default)
                 {
-                    globalMouseEntity = r.entity;
+                    throw new InvalidOperationException("Multiple global mouse entities found");
                 }
-                else
-                {
-                    throw new InvalidOperationException("Multiple global mice detected");
-                }
+
+                globalMouseEntity = r.entity;
             }
 
             if (kbmHook == default)
@@ -214,7 +195,7 @@ namespace InputDevices.Systems
 
         private void OnKeyPressed(object? sender, KeyboardHookEventArgs e)
         {
-            if (hostWorld != default && e.Data.KeyCode != KeyCode.VcUndefined)
+            if (simulator != default && e.Data.KeyCode != KeyCode.VcUndefined)
             {
                 Keyboard.Button control = GetControl(e.Data.KeyCode);
                 if (!globalCurrentKeyboard[(uint)control])
@@ -226,7 +207,7 @@ namespace InputDevices.Systems
 
         private void OnKeyReleased(object? sender, KeyboardHookEventArgs e)
         {
-            if (hostWorld != default && e.Data.KeyCode != KeyCode.VcUndefined)
+            if (simulator != default && e.Data.KeyCode != KeyCode.VcUndefined)
             {
                 Keyboard.Button control = GetControl(e.Data.KeyCode);
                 if (globalCurrentKeyboard[(uint)control])
@@ -238,7 +219,7 @@ namespace InputDevices.Systems
 
         private void OnMousePressed(object? sender, MouseHookEventArgs e)
         {
-            if (hostWorld != default)
+            if (simulator != default)
             {
                 uint control = (uint)e.Data.Button;
                 if (!globalCurrentMouse[control])
@@ -250,7 +231,7 @@ namespace InputDevices.Systems
 
         private void OnMouseReleased(object? sender, MouseHookEventArgs e)
         {
-            if (hostWorld != default)
+            if (simulator != default)
             {
                 uint control = (uint)e.Data.Button;
                 if (globalCurrentMouse[control])
@@ -262,7 +243,7 @@ namespace InputDevices.Systems
 
         private void OnMouseDragged(object? sender, MouseHookEventArgs e)
         {
-            if (hostWorld != default)
+            if (simulator != default)
             {
                 globalMousePosition = new Vector2(e.Data.X, e.Data.Y);
                 globalMouseMoved = true;
@@ -271,7 +252,7 @@ namespace InputDevices.Systems
 
         private void OnMouseMoved(object? sender, MouseHookEventArgs e)
         {
-            if (hostWorld != default)
+            if (simulator != default)
             {
                 globalMousePosition = new Vector2(e.Data.X, e.Data.Y);
                 globalMouseMoved = true;
@@ -280,7 +261,7 @@ namespace InputDevices.Systems
 
         private void OnMouseWheel(object? sender, MouseWheelHookEventArgs e)
         {
-            if (hostWorld != default)
+            if (simulator != default)
             {
                 globalMouseScroll = new Vector2(e.Data.X, e.Data.Y);
                 globalMouseScrolled = true;

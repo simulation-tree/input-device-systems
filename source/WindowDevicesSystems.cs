@@ -21,13 +21,27 @@ namespace InputDevices.Systems
         private readonly Dictionary<uint, List<Mouse>> mouseEntities;
         private readonly Dictionary<uint, MouseState> currentMice;
         private readonly Dictionary<uint, MouseState> lastMice;
-        private unsafe delegate* unmanaged[Cdecl]<nint, SDL_Event*, SDLBool> eventFilterFunction;
+        private readonly Simulator simulator;
+        private readonly unsafe delegate* unmanaged[Cdecl]<nint, SDL_Event*, SDLBool> eventFilterFunction;
+
+        private unsafe WindowDevicesSystems(Simulator simulator)
+        {
+            keyboardEntities = new();
+            currentKeyboards = new();
+            lastKeyboards = new();
+            mouseEntities = new();
+            currentMice = new();
+            lastMice = new();
+            this.simulator = simulator;
+            eventFilterFunction = &EventFilter;
+            SDL_AddEventWatch(eventFilterFunction, simulator.Address);
+        }
 
         void ISystem.Start(in SystemContainer systemContainer, in World world)
         {
             if (systemContainer.World == world)
             {
-                Initialize(systemContainer.Simulator);
+                systemContainer.allocation.Write(new WindowDevicesSystems(systemContainer.Simulator));
             }
         }
 
@@ -42,29 +56,9 @@ namespace InputDevices.Systems
 
         void ISystem.Finish(in SystemContainer systemContainer, in World world)
         {
-            if (systemContainer.World == world)
-            {
-                CleanUp(systemContainer.Simulator);
-            }
         }
 
-        public unsafe WindowDevicesSystems()
-        {
-            keyboardEntities = new();
-            currentKeyboards = new();
-            lastKeyboards = new();
-            mouseEntities = new();
-            currentMice = new();
-            lastMice = new();
-        }
-
-        private unsafe void Initialize(Simulator simulator)
-        {
-            eventFilterFunction = &EventFilter;
-            SDL_AddEventWatch(eventFilterFunction, simulator.Address);
-        }
-
-        private readonly unsafe void CleanUp(Simulator simulator)
+        unsafe void IDisposable.Dispose()
         {
             SDL_RemoveEventWatch(eventFilterFunction, simulator.Address);
             foreach (uint keyboardId in keyboardEntities.Keys)
@@ -92,8 +86,8 @@ namespace InputDevices.Systems
                 USpan<Keyboard> keyboards = GetOrCreateKeyboard(simulator, keyboardId);
                 foreach (ref Keyboard keyboard in keyboards)
                 {
-                    ref KeyboardState state = ref keyboard.AsEntity().GetComponentRef<IsKeyboard>().state;
-                    ref KeyboardState lastState = ref keyboard.AsEntity().GetComponentRef<LastKeyboardState>().value;
+                    ref KeyboardState state = ref keyboard.AsEntity().GetComponent<IsKeyboard>().state;
+                    ref KeyboardState lastState = ref keyboard.AsEntity().GetComponent<LastKeyboardState>().value;
                     state = currentKeyboards[keyboardId];
                     lastState = lastKeyboards[keyboardId];
                 }
@@ -104,8 +98,8 @@ namespace InputDevices.Systems
                 USpan<Mouse> mice = GetOrCreateMouse(simulator, mouseId);
                 foreach (ref Mouse mouse in mice)
                 {
-                    ref MouseState state = ref mouse.AsEntity().GetComponentRef<IsMouse>().state;
-                    ref MouseState lastState = ref mouse.AsEntity().GetComponentRef<LastMouseState>().value;
+                    ref MouseState state = ref mouse.AsEntity().GetComponent<IsMouse>().state;
+                    ref MouseState lastState = ref mouse.AsEntity().GetComponent<LastMouseState>().value;
                     state = currentMice[mouseId];
                     lastState = lastMice[mouseId];
                 }
@@ -145,8 +139,8 @@ namespace InputDevices.Systems
             {
                 if (!currentKeyboards.ContainsKey(keyboardId))
                 {
-                    currentKeyboards.TryAdd(keyboardId, new());
-                    lastKeyboards.TryAdd(keyboardId, new());
+                    currentKeyboards.Add(keyboardId, new());
+                    lastKeyboards.Add(keyboardId, new());
                 }
 
                 uint control = (uint)key.scancode;
@@ -176,8 +170,8 @@ namespace InputDevices.Systems
             {
                 if (!currentMice.ContainsKey(mouseId))
                 {
-                    currentMice.TryAdd(mouseId, new());
-                    lastMice.TryAdd(mouseId, new());
+                    currentMice.Add(mouseId, new());
+                    lastMice.Add(mouseId, new());
                 }
 
                 ref MouseState currentState = ref currentMice[mouseId];
@@ -211,13 +205,13 @@ namespace InputDevices.Systems
             if (!keyboardEntities.TryGetValue(keyboardId, out List<Keyboard> keyboards))
             {
                 keyboards = new();
-                foreach (ProgramContainer program in simulator.Programs)
+                foreach (World programWorld in simulator.ProgramWorlds)
                 {
-                    Keyboard keyboard = new(program.world);
+                    Keyboard keyboard = new(programWorld);
                     keyboards.Add(keyboard);
                 }
 
-                keyboardEntities.TryAdd(keyboardId, keyboards);
+                keyboardEntities.Add(keyboardId, keyboards);
             }
 
             return keyboards.AsSpan();
@@ -228,13 +222,13 @@ namespace InputDevices.Systems
             if (!mouseEntities.TryGetValue(mouseId, out List<Mouse> mice))
             {
                 mice = new();
-                foreach (ProgramContainer program in simulator.Programs)
+                foreach (World programWorld in simulator.ProgramWorlds)
                 {
-                    Mouse mouse = new(program.world);
+                    Mouse mouse = new(programWorld);
                     mice.Add(mouse);
                 }
 
-                mouseEntities.TryAdd(mouseId, mice);
+                mouseEntities.Add(mouseId, mice);
             }
 
             return mice.AsSpan();
