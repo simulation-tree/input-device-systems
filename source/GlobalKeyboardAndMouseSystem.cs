@@ -44,8 +44,17 @@ namespace InputDevices.Systems
             Update(world);
         }
 
-        void ISystem.Finish(in SystemContainer systemContainer, in World world)
+        unsafe void ISystem.Finish(in SystemContainer systemContainer, in World world)
         {
+            if (systemContainer.World == world)
+            {
+                if (kbmHook != default)
+                {
+                    kbmHook.Dispose();
+                }
+
+                SDL3.SDL3.SDL_RemoveEventWatch(eventFilterFunction, simulator.Address);
+            }
         }
 
         private unsafe GlobalKeyboardAndMouseSystem(Simulator simulator)
@@ -53,16 +62,6 @@ namespace InputDevices.Systems
             this.simulator = simulator;
             eventFilterFunction = &EventFilter;
             SDL3.SDL3.SDL_AddEventWatch(eventFilterFunction, simulator.Address);
-        }
-
-        unsafe void IDisposable.Dispose()
-        {
-            if (kbmHook != default)
-            {
-                kbmHook.Dispose();
-            }
-
-            SDL3.SDL3.SDL_RemoveEventWatch(eventFilterFunction, simulator.Address);
         }
 
         private void Update(World world)

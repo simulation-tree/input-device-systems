@@ -54,29 +54,28 @@ namespace InputDevices.Systems
             }
         }
 
-        void ISystem.Finish(in SystemContainer systemContainer, in World world)
+        unsafe void ISystem.Finish(in SystemContainer systemContainer, in World world)
         {
-        }
-
-        unsafe void IDisposable.Dispose()
-        {
-            SDL_RemoveEventWatch(eventFilterFunction, simulator.Address);
-            foreach (uint keyboardId in keyboardEntities.Keys)
+            if (systemContainer.World == world)
             {
-                keyboardEntities[keyboardId].Dispose();
-            }
+                SDL_RemoveEventWatch(eventFilterFunction, simulator.Address);
+                foreach (uint keyboardId in keyboardEntities.Keys)
+                {
+                    keyboardEntities[keyboardId].Dispose();
+                }
 
-            foreach (uint mouseId in mouseEntities.Keys)
-            {
-                mouseEntities[mouseId].Dispose();
-            }
+                foreach (uint mouseId in mouseEntities.Keys)
+                {
+                    mouseEntities[mouseId].Dispose();
+                }
 
-            mouseEntities.Dispose();
-            currentMice.Dispose();
-            lastMice.Dispose();
-            keyboardEntities.Dispose();
-            currentKeyboards.Dispose();
-            lastKeyboards.Dispose();
+                mouseEntities.Dispose();
+                currentMice.Dispose();
+                lastMice.Dispose();
+                keyboardEntities.Dispose();
+                currentKeyboards.Dispose();
+                lastKeyboards.Dispose();
+            }
         }
 
         private readonly void UpdateEntitiesToMatchDevices(Simulator simulator)
