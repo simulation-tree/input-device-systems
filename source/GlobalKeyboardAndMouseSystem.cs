@@ -35,7 +35,7 @@ namespace InputDevices.Systems
         {
             if (systemContainer.World == world)
             {
-                systemContainer.allocation.Write(new GlobalKeyboardAndMouseSystem(systemContainer.Simulator));
+                systemContainer.Write(new GlobalKeyboardAndMouseSystem(systemContainer.Simulator));
             }
         }
 

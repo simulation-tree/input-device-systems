@@ -41,7 +41,7 @@ namespace InputDevices.Systems
         {
             if (systemContainer.World == world)
             {
-                systemContainer.allocation.Write(new WindowDevicesSystems(systemContainer.Simulator));
+                systemContainer.Write(new WindowDevicesSystems(systemContainer.Simulator));
             }
         }
 
