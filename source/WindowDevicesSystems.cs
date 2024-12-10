@@ -119,8 +119,7 @@ namespace InputDevices.Systems
                 lastState = currentMice[mouseId];
 
                 ref MouseState currentState = ref currentMice[mouseId];
-                currentState.scrollX = default;
-                currentState.scrollY = default;
+                currentState.scroll = default;
             }
         }
 
@@ -178,13 +177,11 @@ namespace InputDevices.Systems
                 {
                     SDL_Window window = SDL_GetWindowFromID(windowId);
                     SDL_GetWindowSize(window, out _, out int height);
-                    currentState.positionX = (int)motion.x;
-                    currentState.positionY = height - (int)motion.y;
+                    currentState.position = new(motion.x, height - motion.y);
                 }
                 else if (type == SDL_EventType.MouseWheel)
                 {
-                    currentState.scrollX = (int)wheel.x;
-                    currentState.scrollY = (int)wheel.y;
+                    currentState.scroll = new(wheel.x, wheel.y);
                 }
                 else if (type == SDL_EventType.MouseButtonDown)
                 {
