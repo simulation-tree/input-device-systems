@@ -106,7 +106,7 @@ namespace InputDevices.Systems
             }
         }
 
-        private TaskPoolGlobalHook InitializeGlobalHook()
+        private readonly TaskPoolGlobalHook InitializeGlobalHook()
         {
             TaskPoolGlobalHook kbmHook = new();
             kbmHook.KeyPressed += OnKeyPressed;
@@ -120,7 +120,7 @@ namespace InputDevices.Systems
             return kbmHook;
         }
 
-        private void UpdateStates(World world)
+        private readonly void UpdateStates(World world)
         {
             if (globalKeyboardEntity != default)
             {
@@ -192,7 +192,7 @@ namespace InputDevices.Systems
             }
         }
 
-        private void OnKeyPressed(object? sender, KeyboardHookEventArgs e)
+        private readonly void OnKeyPressed(object? sender, KeyboardHookEventArgs e)
         {
             if (simulator != default && e.Data.KeyCode != KeyCode.VcUndefined)
             {
@@ -204,7 +204,7 @@ namespace InputDevices.Systems
             }
         }
 
-        private void OnKeyReleased(object? sender, KeyboardHookEventArgs e)
+        private readonly void OnKeyReleased(object? sender, KeyboardHookEventArgs e)
         {
             if (simulator != default && e.Data.KeyCode != KeyCode.VcUndefined)
             {
@@ -216,7 +216,7 @@ namespace InputDevices.Systems
             }
         }
 
-        private void OnMousePressed(object? sender, MouseHookEventArgs e)
+        private readonly void OnMousePressed(object? sender, MouseHookEventArgs e)
         {
             if (simulator != default)
             {
@@ -228,7 +228,7 @@ namespace InputDevices.Systems
             }
         }
 
-        private void OnMouseReleased(object? sender, MouseHookEventArgs e)
+        private readonly void OnMouseReleased(object? sender, MouseHookEventArgs e)
         {
             if (simulator != default)
             {
@@ -240,7 +240,7 @@ namespace InputDevices.Systems
             }
         }
 
-        private void OnMouseDragged(object? sender, MouseHookEventArgs e)
+        private readonly void OnMouseDragged(object? sender, MouseHookEventArgs e)
         {
             if (simulator != default)
             {
@@ -249,7 +249,7 @@ namespace InputDevices.Systems
             }
         }
 
-        private void OnMouseMoved(object? sender, MouseHookEventArgs e)
+        private readonly void OnMouseMoved(object? sender, MouseHookEventArgs e)
         {
             if (simulator != default)
             {
@@ -258,7 +258,7 @@ namespace InputDevices.Systems
             }
         }
 
-        private void OnMouseWheel(object? sender, MouseWheelHookEventArgs e)
+        private readonly void OnMouseWheel(object? sender, MouseWheelHookEventArgs e)
         {
             if (simulator != default)
             {
