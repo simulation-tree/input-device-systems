@@ -96,6 +96,24 @@ namespace InputDevices.Systems
 
                 ref IsMouse current = ref device.World.GetComponent<IsMouse>(device.entity);
                 ref LastMouseState last = ref device.World.GetComponent<LastMouseState>(device.entity);
+                device.internalCurrentState.cursor = current.state.cursor;
+                if (current.state.cursor != last.value.cursor)
+                {
+                    SDL_Cursor currentCursor = SDL_GetCursor();
+                    SDL_DestroyCursor(currentCursor);
+
+                    if (current.state.cursor == Mouse.Cursor.Default)
+                    {
+                        SDL_Cursor defaultCursor = SDL_GetDefaultCursor();
+                        SDL_SetCursor(defaultCursor);
+                    }
+                    else
+                    {
+                        SDL_Cursor customCursor = SDL_CreateSystemCursor((SDL_SystemCursor)current.state.cursor);
+                        SDL_SetCursor(customCursor);
+                    }
+                }
+
                 current.state = device.internalCurrentState;
                 last.value = device.internalLastState;
             }

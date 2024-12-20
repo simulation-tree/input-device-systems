@@ -36,8 +36,4 @@
 		<ProjectReference Include="..\..\windows\source\Windows.csproj" />
 	</ItemGroup>
 
-	<ItemGroup>
-		<Folder Include="Systems\" />
-	</ItemGroup>
-
 </Project>
