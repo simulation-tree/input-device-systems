@@ -13,9 +13,7 @@ using static SDL3.SDL3;
 
 namespace InputDevices.Systems
 {
-    //todo: perhaps split this system into one for each type of device?
-    //tho then that will mean 3 individual event watchers
-    public partial struct WindowDevicesSystems : ISystem
+    public readonly partial struct WindowDevicesSystems : ISystem
     {
         private readonly Dictionary<uint, VirtualDevice<KeyboardState>> keyboards;
         private readonly Dictionary<uint, VirtualDevice<MouseState>> mice;
