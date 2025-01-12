@@ -75,7 +75,9 @@ namespace InputDevices.Systems
                 ref VirtualDevice<KeyboardState> device = ref keyboards[keyboardId];
                 if (device.entity == default)
                 {
-                    device.InputDevice = new Keyboard(device.World);
+                    Keyboard newKeyboard = new(device.World);
+                    newKeyboard.Window = device.window;
+                    device.InputDevice = newKeyboard;
                 }
 
                 ref IsKeyboard current = ref device.World.GetComponent<IsKeyboard>(device.entity);
@@ -89,7 +91,9 @@ namespace InputDevices.Systems
                 ref VirtualDevice<MouseState> device = ref mice[mouseId];
                 if (device.entity == default)
                 {
-                    device.InputDevice = new Mouse(device.World);
+                    Mouse newMouse = new(device.World);
+                    newMouse.Window = device.window;
+                    device.InputDevice = newMouse;
                 }
 
                 ref IsMouse current = ref device.World.GetComponent<IsMouse>(device.entity);
@@ -133,7 +137,7 @@ namespace InputDevices.Systems
             }
         }
 
-        private readonly void KeyboardEvent(Window window, SDL_EventType type, SDL_KeyboardDeviceEvent kdevice, SDL_KeyboardEvent key)
+        private readonly void KeyboardEvent(Window window, SDL_EventType type, SDL_KeyboardDeviceEvent kdevice, SDL_KeyboardEvent key, SDL_WindowID windowId)
         {
             uint keyboardId = (uint)kdevice.which;
             if (type == SDL_EventType.KeyboardRemoved)
@@ -243,7 +247,7 @@ namespace InputDevices.Systems
                 if (TryGetWindow(simulator, (uint)sdlEvent->window.windowID, out Window window))
                 {
                     ref WindowDevicesSystems system = ref simulator.GetSystem<WindowDevicesSystems>().Value;
-                    system.KeyboardEvent(window, type, sdlEvent->kdevice, sdlEvent->key);
+                    system.KeyboardEvent(window, type, sdlEvent->kdevice, sdlEvent->key, sdlEvent->window.windowID);
                 }
             }
 
