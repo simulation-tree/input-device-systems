@@ -74,7 +74,8 @@ namespace InputDevices.Systems
         {
             globalKeyboardEntity = default;
             globalMouseEntity = default;
-            ComponentQuery<IsKeyboard, IsGlobal> globalKeyboardsQuery = new(world);
+            ComponentQuery<IsKeyboard> globalKeyboardsQuery = new(world);
+            globalKeyboardsQuery.RequireTag<IsGlobal>();
             foreach (var r in globalKeyboardsQuery)
             {
                 if (globalKeyboardEntity != default)
@@ -85,7 +86,8 @@ namespace InputDevices.Systems
                 globalKeyboardEntity = r.entity;
             }
 
-            ComponentQuery<IsMouse, IsGlobal> globalMiceQuery = new(world);
+            ComponentQuery<IsMouse> globalMiceQuery = new(world);
+            globalMiceQuery.RequireTag<IsGlobal>();
             foreach (var r in globalMiceQuery)
             {
                 if (globalMouseEntity != default)
@@ -124,7 +126,7 @@ namespace InputDevices.Systems
         {
             if (globalKeyboardEntity != default)
             {
-                Keyboard keyboard = new(world, globalKeyboardEntity);
+                Keyboard keyboard = new Entity(world, globalKeyboardEntity).As<Keyboard>();
                 bool keyboardUpdated = false;
                 for (uint i = 0; i < KeyboardState.MaxKeyCount; i++)
                 {
@@ -151,7 +153,7 @@ namespace InputDevices.Systems
 
             if (globalMouseEntity != default)
             {
-                Mouse mouse = new(world, globalMouseEntity);
+                Mouse mouse = new Entity(world, globalMouseEntity).As<Mouse>();
                 bool mouseUpdated = false;
                 for (uint i = 0; i < MouseState.MaxButtonCount; i++)
                 {
