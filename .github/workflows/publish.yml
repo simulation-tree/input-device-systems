@@ -42,6 +42,13 @@ jobs:
           repository: game-simulations/worlds
           token: ${{ secrets.PAT }}
           path: worlds
+
+      - name: Checkout `simulation`
+        uses: actions/checkout@v4.1.2
+        with:
+          repository: game-simulations/simulation
+          token: ${{ secrets.PAT }}
+          path: simulation
     
       - name: Checkout `input-devices`
         uses: actions/checkout@v4.1.2
@@ -49,6 +56,13 @@ jobs:
           repository: game-simulations/input-devices
           token: ${{ secrets.PAT }}
           path: input-devices
+    
+      - name: Checkout `windows`
+        uses: actions/checkout@v4.1.2
+        with:
+          repository: game-simulations/windows
+          token: ${{ secrets.PAT }}
+          path: windows
       
       - name: Setup dotnet
         uses: actions/setup-dotnet@v4
