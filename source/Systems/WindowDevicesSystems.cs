@@ -263,17 +263,11 @@ namespace InputDevices.Systems
 
             public InputDevice InputDevice
             {
-                readonly get
-                {
-                    return new(World, entity);
-                }
-                set
-                {
-                    entity = value.GetEntityValue();
-                }
+                readonly get => new Entity(World, entity).As<InputDevice>();
+                set => entity = value.value;
             }
 
-            public readonly World World => window.GetWorld();
+            public readonly World World => window.world;
 
             public VirtualDevice(Window window)
             {
