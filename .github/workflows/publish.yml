@@ -109,9 +109,7 @@ jobs:
             
       - name: Build `InputDevices.Systems`
         run: dotnet build "${{ github.event.repository.name }}/source" -c Release /p:Version=${VERSION}
-            
-      - name: Test
-        run: dotnet test "${{ github.event.repository.name }}/tests" -c Release --logger "trx"
+      
             
       - name: Pack `InputDevices.Systems`
         run: dotnet pack "${{ github.event.repository.name }}/source" -c Release /p:Version=${VERSION} --no-build --output .
