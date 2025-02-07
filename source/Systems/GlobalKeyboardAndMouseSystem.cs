@@ -74,28 +74,35 @@ namespace InputDevices.Systems
         {
             globalKeyboardEntity = default;
             globalMouseEntity = default;
-            ComponentQuery<IsKeyboard> globalKeyboardsQuery = new(world);
-            globalKeyboardsQuery.RequireTag<IsGlobal>();
-            foreach (var r in globalKeyboardsQuery)
+            ComponentType keyboardType = world.Schema.GetComponent<IsKeyboard>();
+            ComponentType mouseType = world.Schema.GetComponent<IsMouse>();
+            TagType globalTagType = world.Schema.GetTag<IsGlobal>();
+            foreach (Chunk chunk in world.Chunks)
             {
-                if (globalKeyboardEntity != default)
+                Definition definition = chunk.Definition;
+                if (definition.Contains(keyboardType) && definition.Contains(globalTagType))
                 {
-                    throw new InvalidOperationException("Multiple global keyboard entities found");
-                }
+                    if (chunk.Count > 1)
+                    {
+                        throw new InvalidOperationException("Multiple global keyboard entities found");
+                    }
 
-                globalKeyboardEntity = r.entity;
+                    globalKeyboardEntity = chunk.Entities[0];
+                }
             }
 
-            ComponentQuery<IsMouse> globalMiceQuery = new(world);
-            globalMiceQuery.RequireTag<IsGlobal>();
-            foreach (var r in globalMiceQuery)
+            foreach (Chunk chunk in world.Chunks)
             {
-                if (globalMouseEntity != default)
+                Definition definition = chunk.Definition;
+                if (definition.Contains(mouseType) && definition.Contains(globalTagType))
                 {
-                    throw new InvalidOperationException("Multiple global mouse entities found");
-                }
+                    if (chunk.Count > 1)
+                    {
+                        throw new InvalidOperationException("Multiple global mouse entities found");
+                    }
 
-                globalMouseEntity = r.entity;
+                    globalMouseEntity = chunk.Entities[0];
+                }
             }
 
             if (kbmHook == default)
