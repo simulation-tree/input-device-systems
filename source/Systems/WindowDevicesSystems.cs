@@ -6,6 +6,7 @@ using System;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Unmanaged;
 using Windows;
 using Windows.Components;
 using Worlds;
@@ -211,14 +212,22 @@ namespace InputDevices.Systems
         {
             foreach (World programWorld in simulator.ProgramWorlds)
             {
-                ComponentQuery<IsWindow> query = new(programWorld);
-                foreach (var r in query)
+                ComponentType windowType = programWorld.Schema.GetComponent<IsWindow>();
+                foreach (Chunk chunk in programWorld.Chunks)
                 {
-                    ref IsWindow component = ref r.component1;
-                    if (component.id == id)
+                    if (chunk.Definition.Contains(windowType))
                     {
-                        window = new Entity(programWorld, r.entity).As<Window>();
-                        return true;
+                        USpan<uint> entities = chunk.Entities;
+                        USpan<IsWindow> components = chunk.GetComponents<IsWindow>(windowType);
+                        for (uint i = 0; i < entities.Length; i++)
+                        {
+                            ref IsWindow component = ref components[i];
+                            if (component.id == id)
+                            {
+                                window = new Entity(programWorld, entities[i]).As<Window>();
+                                return true;
+                            }
+                        }
                     }
                 }
             }
