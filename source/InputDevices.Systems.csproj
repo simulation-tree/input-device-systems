@@ -17,7 +17,6 @@
 
 	<ItemGroup>
 		<PackageReference Include="Alimer.Bindings.SDL" Version="3.9.6" />
-		<PackageReference Include="SharpHook" Version="5.3.8" />
 	</ItemGroup>
 
 	<ItemGroup>
