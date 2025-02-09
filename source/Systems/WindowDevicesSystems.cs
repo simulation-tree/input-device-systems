@@ -210,8 +210,9 @@ namespace InputDevices.Systems
 
         public static bool TryGetWindow(Simulator simulator, uint id, out Window window)
         {
-            foreach (World programWorld in simulator.ProgramWorlds)
+            foreach (ProgramContainer program in simulator.Programs)
             {
+                World programWorld = program.world;
                 ComponentType windowType = programWorld.Schema.GetComponent<IsWindow>();
                 foreach (Chunk chunk in programWorld.Chunks)
                 {
