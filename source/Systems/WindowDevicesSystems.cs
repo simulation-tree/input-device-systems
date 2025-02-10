@@ -135,6 +135,7 @@ namespace InputDevices.Systems
                 ref VirtualDevice<MouseState> device = ref mice[mouseId];
                 device.internalLastState = device.internalCurrentState;
                 device.internalCurrentState.scroll = default;
+                device.internalCurrentState.delta = default;
             }
         }
 
@@ -190,10 +191,11 @@ namespace InputDevices.Systems
                 {
                     Vector2 size = window.Size;
                     device.internalCurrentState.position = new(motion.x, size.Y - motion.y);
+                    device.internalCurrentState.delta += new Vector2(motion.xrel, -motion.yrel);
                 }
                 else if (type == SDL_EventType.MouseWheel)
                 {
-                    device.internalCurrentState.scroll = new(wheel.x, wheel.y);
+                    device.internalCurrentState.scroll += new Vector2(wheel.x, wheel.y);
                 }
                 else if (type == SDL_EventType.MouseButtonDown)
                 {
