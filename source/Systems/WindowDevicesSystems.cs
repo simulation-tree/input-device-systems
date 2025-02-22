@@ -154,7 +154,8 @@ namespace InputDevices.Systems
                 ref VirtualDevice<KeyboardState> device = ref keyboards.TryGetValue(keyboardId, out bool contains);
                 if (!contains)
                 {
-                    device = ref keyboards.Add(keyboardId, new(window));
+                    device = ref keyboards.Add(keyboardId);
+                    device = new(window);
                 }
 
                 uint control = (uint)key.scancode;
@@ -184,7 +185,8 @@ namespace InputDevices.Systems
                 ref VirtualDevice<MouseState> device = ref mice.TryGetValue(mouseId, out bool contains);
                 if (!contains)
                 {
-                    device = ref mice.Add(mouseId, new(window));
+                    device = ref mice.Add(mouseId);
+                    device = new(window);
                 }
 
                 if (type == SDL_EventType.MouseMotion)
