@@ -1,4 +1,4 @@
-﻿using Collections;
+﻿using Collections.Generic;
 using InputDevices.Components;
 using SDL3;
 using Simulation;
