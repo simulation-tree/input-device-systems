@@ -217,10 +217,10 @@ namespace InputDevices.Systems
             foreach (ProgramContainer program in simulator.Programs)
             {
                 World programWorld = program.world;
-                ComponentType windowType = programWorld.Schema.GetComponent<IsWindow>();
+                ComponentType windowType = programWorld.Schema.GetComponentType<IsWindow>();
                 foreach (Chunk chunk in programWorld.Chunks)
                 {
-                    if (chunk.Definition.Contains(windowType))
+                    if (chunk.Definition.ContainsComponent(windowType))
                     {
                         USpan<uint> entities = chunk.Entities;
                         USpan<IsWindow> components = chunk.GetComponents<IsWindow>(windowType);
