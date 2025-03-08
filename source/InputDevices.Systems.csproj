@@ -11,8 +11,8 @@
         <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
         <Title>Input Device Systems</Title>
         <Authors>popcron</Authors>
-        <Company>game-simulations</Company>
-        <RepositoryUrl>https://github.com/game-simulations/input-device-systems</RepositoryUrl>
+        <Company>simulation-tree</Company>
+        <RepositoryUrl>https://github.com/simulation-tree/input-device-systems</RepositoryUrl>
         <PackageId/>
     </PropertyGroup>
 
