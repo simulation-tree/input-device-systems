@@ -6,7 +6,6 @@ using System;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Unmanaged;
 using Windows;
 using Windows.Components;
 using Worlds;
@@ -161,11 +160,11 @@ namespace InputDevices.Systems
                 uint control = (uint)key.scancode;
                 if (type == SDL_EventType.KeyDown)
                 {
-                    device.internalCurrentState[control] = true;
+                    device.internalCurrentState[(int)control] = true;
                 }
                 else if (type == SDL_EventType.KeyUp)
                 {
-                    device.internalCurrentState[control] = false;
+                    device.internalCurrentState[(int)control] = false;
                 }
             }
         }
@@ -222,9 +221,9 @@ namespace InputDevices.Systems
                 {
                     if (chunk.Definition.ContainsComponent(windowType))
                     {
-                        USpan<uint> entities = chunk.Entities;
-                        USpan<IsWindow> components = chunk.GetComponents<IsWindow>(windowType);
-                        for (uint i = 0; i < entities.Length; i++)
+                        ReadOnlySpan<uint> entities = chunk.Entities;
+                        Span<IsWindow> components = chunk.GetComponents<IsWindow>(windowType);
+                        for (int i = 0; i < entities.Length; i++)
                         {
                             ref IsWindow component = ref components[i];
                             if (component.id == id)
