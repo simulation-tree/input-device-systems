@@ -3,6 +3,7 @@ using InputDevices.Components;
 using SDL3;
 using Simulation;
 using System;
+using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -15,28 +16,21 @@ namespace InputDevices.Systems
 {
     public readonly partial struct WindowDevicesSystems : ISystem
     {
+        private readonly Dictionary<uint, Window> windows;
         private readonly Dictionary<uint, VirtualDevice<KeyboardState>> keyboards;
         private readonly Dictionary<uint, VirtualDevice<MouseState>> mice;
-        private readonly Simulator simulator;
         private readonly unsafe delegate* unmanaged[Cdecl]<nint, SDL_Event*, SDLBool> eventFilterFunction;
 
-        [Obsolete("Default constructor is not supported", true)]
-        public WindowDevicesSystems()
+        private unsafe WindowDevicesSystems(delegate* unmanaged[Cdecl]<nint, SDL_Event*, SDLBool> eventFilterFunction)
         {
-        }
-
-        public unsafe WindowDevicesSystems(Simulator simulator)
-        {
-            this.simulator = simulator;
+            windows = new();
             keyboards = new();
             mice = new();
-            eventFilterFunction = &EventFilter;
-            SDL_AddEventWatch(eventFilterFunction, simulator.Address);
+            this.eventFilterFunction = eventFilterFunction;
         }
 
-        public unsafe readonly void Dispose()
+        public readonly void Dispose()
         {
-            SDL_RemoveEventWatch(eventFilterFunction, simulator.Address);
             foreach (uint keyboardId in keyboards.Keys)
             {
                 ref VirtualDevice<KeyboardState> device = ref keyboards[keyboardId];
@@ -51,23 +45,74 @@ namespace InputDevices.Systems
 
             mice.Dispose();
             keyboards.Dispose();
+            windows.Dispose();
         }
 
-        void ISystem.Start(in SystemContext context, in World world)
+        unsafe void ISystem.Start(in SystemContext context, in World world)
         {
+            if (context.World == world)
+            {
+                delegate* unmanaged[Cdecl]<nint, SDL_Event*, SDLBool> eventFilterFunction = &EventFilter;
+                SDL_AddEventWatch(eventFilterFunction, context.Simulator.Address);
+                context.Write(new WindowDevicesSystems(eventFilterFunction));
+            }
         }
 
         void ISystem.Update(in SystemContext context, in World world, in TimeSpan delta)
         {
-            if (simulator.World == world)
+            FindWindows(world);
+            if (context.World == world)
             {
                 UpdateEntitiesToMatchDevices();
                 AdvancePreviousStates();
             }
         }
 
-        void ISystem.Finish(in SystemContext context, in World world)
+        unsafe void ISystem.Finish(in SystemContext context, in World world)
         {
+            if (context.World == world)
+            {
+                SDL_RemoveEventWatch(eventFilterFunction, context.Simulator.Address);
+            }
+        }
+
+        private readonly void FindWindows(World world)
+        {
+            //remove windows that no longer exist
+            Span<uint> toRemove = stackalloc uint[windows.Count];
+            int removeCount = 0;
+            foreach ((uint windowId, Window window) in windows)
+            {
+                if (window.IsDestroyed)
+                {
+                    toRemove[removeCount++] = windowId;
+                }
+            }
+            
+            for (int i = 0; i < removeCount; i++)
+            {
+                windows.Remove(toRemove[i]);
+            }
+            
+            //add windows
+            int windowType = world.Schema.GetComponentType<IsWindow>();
+            foreach (Chunk chunk in world.Chunks)
+            {
+                if (chunk.Definition.ContainsComponent(windowType))
+                {
+                    ReadOnlySpan<uint> entities = chunk.Entities;
+                    ComponentEnumerator<IsWindow> components = chunk.GetComponents<IsWindow>(windowType);
+                    for (int i = 0; i < entities.Length; i++)
+                    {
+                        ref IsWindow component = ref components[i];
+                        if (!windows.ContainsKey(component.id))
+                        {
+                            Entity entity = new(world, entities[i]);
+                            windows.Add(component.id, entity.As<Window>());
+                        }
+                    }
+                }
+            }
         }
 
         private readonly void UpdateEntitiesToMatchDevices()
@@ -140,7 +185,7 @@ namespace InputDevices.Systems
             }
         }
 
-        private readonly void KeyboardEvent(Window window, SDL_EventType type, SDL_KeyboardDeviceEvent kdevice, SDL_KeyboardEvent key, SDL_WindowID windowId)
+        private readonly void KeyboardEvent(uint windowId, SDL_EventType type, SDL_KeyboardDeviceEvent kdevice, SDL_KeyboardEvent key)
         {
             uint keyboardId = (uint)kdevice.which;
             if (type == SDL_EventType.KeyboardRemoved)
@@ -155,8 +200,16 @@ namespace InputDevices.Systems
                 ref VirtualDevice<KeyboardState> device = ref keyboards.TryGetValue(keyboardId, out bool contains);
                 if (!contains)
                 {
-                    device = ref keyboards.Add(keyboardId);
-                    device = new(window);
+                    if (windows.TryGetValue(windowId, out Window window))
+                    {
+                        device = ref keyboards.Add(keyboardId);
+                        device = new(window);
+                    }
+                    else
+                    {
+                        //window doesnt exist yet? could happen if input system runs before a window system does
+                        return;
+                    }
                 }
 
                 uint control = (uint)key.scancode;
@@ -171,7 +224,7 @@ namespace InputDevices.Systems
             }
         }
 
-        private readonly void MouseEvent(Window window, SDL_EventType type, SDL_MouseDeviceEvent mdevice, SDL_MouseMotionEvent motion, SDL_MouseWheelEvent wheel, SDL_MouseButtonEvent button, SDL_WindowID windowId)
+        private readonly void MouseEvent(uint windowId, SDL_EventType type, SDL_MouseDeviceEvent mdevice, SDL_MouseMotionEvent motion, SDL_MouseWheelEvent wheel, SDL_MouseButtonEvent button)
         {
             uint mouseId = (uint)mdevice.which;
             if (type == SDL_EventType.MouseRemoved)
@@ -186,12 +239,21 @@ namespace InputDevices.Systems
                 ref VirtualDevice<MouseState> device = ref mice.TryGetValue(mouseId, out bool contains);
                 if (!contains)
                 {
-                    device = ref mice.Add(mouseId);
-                    device = new(window);
+                    if (windows.TryGetValue(windowId, out Window window))
+                    {
+                        device = ref mice.Add(mouseId);
+                        device = new(window);
+                    }
+                    else
+                    {
+                        //window doesnt exist yet? could happen if input system runs before a window system does
+                        return;
+                    }
                 }
 
                 if (type == SDL_EventType.MouseMotion)
                 {
+                    Window window = windows[windowId];
                     Vector2 size = window.Size;
                     device.internalCurrentState.position = new(motion.x, size.Y - motion.y);
                     device.internalCurrentState.delta += new Vector2(motion.xrel, -motion.yrel);
@@ -213,57 +275,24 @@ namespace InputDevices.Systems
             }
         }
 
-        public static bool TryGetWindow(Simulator simulator, uint id, out Window window)
-        {
-            foreach (ProgramContainer program in simulator.Programs)
-            {
-                World programWorld = program.world;
-                int windowType = programWorld.Schema.GetComponentType<IsWindow>();
-                foreach (Chunk chunk in programWorld.Chunks)
-                {
-                    if (chunk.Definition.ContainsComponent(windowType))
-                    {
-                        ReadOnlySpan<uint> entities = chunk.Entities;
-                        ComponentEnumerator<IsWindow> components = chunk.GetComponents<IsWindow>(windowType);
-                        for (int i = 0; i < entities.Length; i++)
-                        {
-                            ref IsWindow component = ref components[i];
-                            if (component.id == id)
-                            {
-                                window = new Entity(programWorld, entities[i]).As<Window>();
-                                return true;
-                            }
-                        }
-                    }
-                }
-            }
-
-            window = default;
-            return false;
-        }
-
         [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
         private static unsafe SDLBool EventFilter(nint simulatorAddress, SDL_Event* sdlEvent)
         {
             SDL_EventType type = sdlEvent->type;
-            if (type == SDL_EventType.MouseMotion || type == SDL_EventType.MouseWheel || type == SDL_EventType.MouseAdded ||
+            if (type is SDL_EventType.MouseMotion or SDL_EventType.MouseWheel || type == SDL_EventType.MouseAdded ||
                 type == SDL_EventType.MouseRemoved || type == SDL_EventType.MouseButtonDown || type == SDL_EventType.MouseButtonUp)
             {
                 Simulator simulator = new(simulatorAddress);
-                if (TryGetWindow(simulator, (uint)sdlEvent->window.windowID, out Window window))
-                {
-                    ref WindowDevicesSystems system = ref simulator.GetSystem<WindowDevicesSystems>().Value;
-                    system.MouseEvent(window, type, sdlEvent->mdevice, sdlEvent->motion, sdlEvent->wheel, sdlEvent->button, sdlEvent->window.windowID);
-                }
+                WindowDevicesSystems system = simulator.GetSystem<WindowDevicesSystems>();
+                uint windowId = (uint)sdlEvent->window.windowID;
+                system.MouseEvent(windowId, type, sdlEvent->mdevice, sdlEvent->motion, sdlEvent->wheel, sdlEvent->button);
             }
             else if (type == SDL_EventType.KeyboardAdded || type == SDL_EventType.KeyboardRemoved || type == SDL_EventType.KeyDown || type == SDL_EventType.KeyUp)
             {
                 Simulator simulator = new(simulatorAddress);
-                if (TryGetWindow(simulator, (uint)sdlEvent->window.windowID, out Window window))
-                {
-                    ref WindowDevicesSystems system = ref simulator.GetSystem<WindowDevicesSystems>().Value;
-                    system.KeyboardEvent(window, type, sdlEvent->kdevice, sdlEvent->key, sdlEvent->window.windowID);
-                }
+                WindowDevicesSystems system = simulator.GetSystem<WindowDevicesSystems>();
+                uint windowId = (uint)sdlEvent->window.windowID;
+                system.KeyboardEvent(windowId, type, sdlEvent->kdevice, sdlEvent->key);
             }
 
             return true;
