@@ -20,52 +20,54 @@ namespace InputDevices.Systems
         private readonly Simulator simulator;
         private readonly unsafe delegate* unmanaged[Cdecl]<nint, SDL_Event*, SDLBool> eventFilterFunction;
 
-        private unsafe WindowDevicesSystems(Simulator simulator)
+        [Obsolete("Default constructor is not supported", true)]
+        public WindowDevicesSystems()
         {
+        }
+
+        public unsafe WindowDevicesSystems(Simulator simulator)
+        {
+            this.simulator = simulator;
             keyboards = new();
             mice = new();
-            this.simulator = simulator;
             eventFilterFunction = &EventFilter;
             SDL_AddEventWatch(eventFilterFunction, simulator.Address);
         }
 
-        void ISystem.Start(in SystemContainer systemContainer, in World world)
+        public unsafe readonly void Dispose()
         {
-            if (systemContainer.World == world)
+            SDL_RemoveEventWatch(eventFilterFunction, simulator.Address);
+            foreach (uint keyboardId in keyboards.Keys)
             {
-                systemContainer.Write(new WindowDevicesSystems(systemContainer.simulator));
+                ref VirtualDevice<KeyboardState> device = ref keyboards[keyboardId];
+                device.InputDevice.Dispose();
             }
+
+            foreach (uint mouseId in mice.Keys)
+            {
+                ref VirtualDevice<MouseState> device = ref mice[mouseId];
+                device.InputDevice.Dispose();
+            }
+
+            mice.Dispose();
+            keyboards.Dispose();
         }
 
-        void ISystem.Update(in SystemContainer systemContainer, in World world, in TimeSpan delta)
+        void ISystem.Start(in SystemContext context, in World world)
         {
-            if (systemContainer.World == world)
+        }
+
+        void ISystem.Update(in SystemContext context, in World world, in TimeSpan delta)
+        {
+            if (simulator.World == world)
             {
                 UpdateEntitiesToMatchDevices();
                 AdvancePreviousStates();
             }
         }
 
-        unsafe void ISystem.Finish(in SystemContainer systemContainer, in World world)
+        void ISystem.Finish(in SystemContext context, in World world)
         {
-            if (systemContainer.World == world)
-            {
-                SDL_RemoveEventWatch(eventFilterFunction, simulator.Address);
-                foreach (uint keyboardId in keyboards.Keys)
-                {
-                    ref VirtualDevice<KeyboardState> device = ref keyboards[keyboardId];
-                    device.InputDevice.Dispose();
-                }
-
-                foreach (uint mouseId in mice.Keys)
-                {
-                    ref VirtualDevice<MouseState> device = ref mice[mouseId];
-                    device.InputDevice.Dispose();
-                }
-
-                mice.Dispose();
-                keyboards.Dispose();
-            }
         }
 
         private readonly void UpdateEntitiesToMatchDevices()
@@ -216,13 +218,13 @@ namespace InputDevices.Systems
             foreach (ProgramContainer program in simulator.Programs)
             {
                 World programWorld = program.world;
-                ComponentType windowType = programWorld.Schema.GetComponentType<IsWindow>();
+                int windowType = programWorld.Schema.GetComponentType<IsWindow>();
                 foreach (Chunk chunk in programWorld.Chunks)
                 {
                     if (chunk.Definition.ContainsComponent(windowType))
                     {
                         ReadOnlySpan<uint> entities = chunk.Entities;
-                        Span<IsWindow> components = chunk.GetComponents<IsWindow>(windowType);
+                        ComponentEnumerator<IsWindow> components = chunk.GetComponents<IsWindow>(windowType);
                         for (int i = 0; i < entities.Length; i++)
                         {
                             ref IsWindow component = ref components[i];
