@@ -3,7 +3,6 @@ using InputDevices.Components;
 using SDL3;
 using Simulation;
 using System;
-using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -88,12 +87,12 @@ namespace InputDevices.Systems
                     toRemove[removeCount++] = windowId;
                 }
             }
-            
+
             for (int i = 0; i < removeCount; i++)
             {
                 windows.Remove(toRemove[i]);
             }
-            
+
             //add windows
             int windowType = world.Schema.GetComponentType<IsWindow>();
             foreach (Chunk chunk in world.Chunks)
