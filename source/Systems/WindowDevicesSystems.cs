@@ -49,7 +49,7 @@ namespace InputDevices.Systems
 
         unsafe void ISystem.Start(in SystemContext context, in World world)
         {
-            if (context.World == world)
+            if (context.IsSimulatorWorld(world))
             {
                 delegate* unmanaged[Cdecl]<nint, SDL_Event*, SDLBool> eventFilterFunction = &EventFilter;
                 SDL_AddEventWatch(eventFilterFunction, context.Simulator.Address);
@@ -60,7 +60,7 @@ namespace InputDevices.Systems
         void ISystem.Update(in SystemContext context, in World world, in TimeSpan delta)
         {
             FindWindows(world);
-            if (context.World == world)
+            if (context.IsSimulatorWorld(world))
             {
                 UpdateEntitiesToMatchDevices();
                 AdvancePreviousStates();
@@ -69,7 +69,7 @@ namespace InputDevices.Systems
 
         unsafe void ISystem.Finish(in SystemContext context, in World world)
         {
-            if (context.World == world)
+            if (context.IsSimulatorWorld(world))
             {
                 SDL_RemoveEventWatch(eventFilterFunction, context.Simulator.Address);
             }
