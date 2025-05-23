@@ -13,23 +13,26 @@ using static SDL3.SDL3;
 
 namespace InputDevices.Systems
 {
-    public readonly partial struct WindowDevicesSystems : ISystem
+    public class WindowDevicesSystems : ISystem, IDisposable
     {
         private readonly Dictionary<uint, Window> windows;
         private readonly Dictionary<uint, VirtualDevice<KeyboardState>> keyboards;
         private readonly Dictionary<uint, VirtualDevice<MouseState>> mice;
-        private readonly unsafe delegate* unmanaged[Cdecl]<nint, SDL_Event*, SDLBool> eventFilterFunction;
+        private nint index;
+        private unsafe delegate* unmanaged[Cdecl]<nint, SDL_Event*, SDLBool> eventFilterFunction;
 
-        private unsafe WindowDevicesSystems(delegate* unmanaged[Cdecl]<nint, SDL_Event*, SDLBool> eventFilterFunction)
+        public unsafe WindowDevicesSystems()
         {
             windows = new();
             keyboards = new();
             mice = new();
-            this.eventFilterFunction = eventFilterFunction;
+            AddListener();
         }
 
-        public readonly void Dispose()
+        public void Dispose()
         {
+            RemoveListener();
+
             foreach (uint keyboardId in keyboards.Keys)
             {
                 ref VirtualDevice<KeyboardState> device = ref keyboards[keyboardId];
@@ -47,35 +50,28 @@ namespace InputDevices.Systems
             windows.Dispose();
         }
 
-        unsafe void ISystem.Start(in SystemContext context, in World world)
+        private unsafe void AddListener()
         {
-            if (context.IsSimulatorWorld(world))
-            {
-                delegate* unmanaged[Cdecl]<nint, SDL_Event*, SDLBool> eventFilterFunction = &EventFilter;
-                SDL_AddEventWatch(eventFilterFunction, context.Simulator.Address);
-                context.Write(new WindowDevicesSystems(eventFilterFunction));
-            }
+            index = Systems.Register(this);
+            eventFilterFunction = &EventFilter;
+            SDL_AddEventWatch(eventFilterFunction, index);
         }
 
-        void ISystem.Update(in SystemContext context, in World world, in TimeSpan delta)
+        private unsafe void RemoveListener()
         {
+            SDL_RemoveEventWatch(eventFilterFunction, index);
+            Systems.Unregister(index);
+        }
+
+        void ISystem.Update(Simulator simulator, double deltaTime)
+        {
+            World world = simulator.world;
             FindWindows(world);
-            if (context.IsSimulatorWorld(world))
-            {
-                UpdateEntitiesToMatchDevices();
-                AdvancePreviousStates();
-            }
+            UpdateEntitiesToMatchDevices();
+            AdvancePreviousStates();
         }
 
-        unsafe void ISystem.Finish(in SystemContext context, in World world)
-        {
-            if (context.IsSimulatorWorld(world))
-            {
-                SDL_RemoveEventWatch(eventFilterFunction, context.Simulator.Address);
-            }
-        }
-
-        private readonly void FindWindows(World world)
+        private void FindWindows(World world)
         {
             //remove windows that no longer exist
             Span<uint> toRemove = stackalloc uint[windows.Count];
@@ -114,7 +110,7 @@ namespace InputDevices.Systems
             }
         }
 
-        private readonly void UpdateEntitiesToMatchDevices()
+        private void UpdateEntitiesToMatchDevices()
         {
             foreach (uint keyboardId in keyboards.Keys)
             {
@@ -167,7 +163,7 @@ namespace InputDevices.Systems
             }
         }
 
-        private readonly void AdvancePreviousStates()
+        private void AdvancePreviousStates()
         {
             foreach (uint keyboardId in keyboards.Keys)
             {
@@ -184,7 +180,7 @@ namespace InputDevices.Systems
             }
         }
 
-        private readonly void KeyboardEvent(uint windowId, SDL_EventType type, SDL_KeyboardDeviceEvent kdevice, SDL_KeyboardEvent key)
+        private void KeyboardEvent(uint windowId, SDL_EventType type, SDL_KeyboardDeviceEvent kdevice, SDL_KeyboardEvent key)
         {
             uint keyboardId = (uint)kdevice.which;
             if (type == SDL_EventType.KeyboardRemoved)
@@ -223,7 +219,7 @@ namespace InputDevices.Systems
             }
         }
 
-        private readonly void MouseEvent(uint windowId, SDL_EventType type, SDL_MouseDeviceEvent mdevice, SDL_MouseMotionEvent motion, SDL_MouseWheelEvent wheel, SDL_MouseButtonEvent button)
+        private void MouseEvent(uint windowId, SDL_EventType type, SDL_MouseDeviceEvent mdevice, SDL_MouseMotionEvent motion, SDL_MouseWheelEvent wheel, SDL_MouseButtonEvent button)
         {
             uint mouseId = (uint)mdevice.which;
             if (type == SDL_EventType.MouseRemoved)
@@ -275,21 +271,19 @@ namespace InputDevices.Systems
         }
 
         [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-        private static unsafe SDLBool EventFilter(nint simulatorAddress, SDL_Event* sdlEvent)
+        private static unsafe SDLBool EventFilter(nint index, SDL_Event* sdlEvent)
         {
             SDL_EventType type = sdlEvent->type;
             if (type is SDL_EventType.MouseMotion or SDL_EventType.MouseWheel || type == SDL_EventType.MouseAdded ||
                 type == SDL_EventType.MouseRemoved || type == SDL_EventType.MouseButtonDown || type == SDL_EventType.MouseButtonUp)
             {
-                Simulator simulator = new(simulatorAddress);
-                WindowDevicesSystems system = simulator.GetSystem<WindowDevicesSystems>();
+                WindowDevicesSystems system = Systems.Get(index);
                 uint windowId = (uint)sdlEvent->window.windowID;
                 system.MouseEvent(windowId, type, sdlEvent->mdevice, sdlEvent->motion, sdlEvent->wheel, sdlEvent->button);
             }
             else if (type == SDL_EventType.KeyboardAdded || type == SDL_EventType.KeyboardRemoved || type == SDL_EventType.KeyDown || type == SDL_EventType.KeyUp)
             {
-                Simulator simulator = new(simulatorAddress);
-                WindowDevicesSystems system = simulator.GetSystem<WindowDevicesSystems>();
+                WindowDevicesSystems system = Systems.Get(index);
                 uint windowId = (uint)sdlEvent->window.windowID;
                 system.KeyboardEvent(windowId, type, sdlEvent->kdevice, sdlEvent->key);
             }
