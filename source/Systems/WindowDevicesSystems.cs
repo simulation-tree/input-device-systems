@@ -1,31 +1,48 @@
 ﻿using Collections.Generic;
 using InputDevices.Components;
+using Rendering.Components;
 using SDL3;
 using Simulation;
 using System;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Windows;
 using Windows.Components;
 using Worlds;
 using static SDL3.SDL3;
 
 namespace InputDevices.Systems
 {
+    [SkipLocalsInit]
     public class WindowDevicesSystems : ISystem, IDisposable
     {
-        private readonly Dictionary<uint, Window> windows;
-        private readonly Dictionary<uint, VirtualDevice<KeyboardState>> keyboards;
-        private readonly Dictionary<uint, VirtualDevice<MouseState>> mice;
+        private readonly World world;
+        private readonly Dictionary<uint, uint> windows;
+        private readonly Dictionary<uint, Vector2> windowSizes;
+        private readonly Dictionary<uint, Device<IsKeyboard>> keyboards;
+        private readonly Dictionary<uint, Device<IsMouse>> mice;
         private nint index;
         private unsafe delegate* unmanaged[Cdecl]<nint, SDL_Event*, SDLBool> eventFilterFunction;
+        private readonly int keyboardType;
+        private readonly int mouseType;
+        private readonly int timestampType;
+        private readonly int windowType;
+        private readonly int destinationType;
 
-        public unsafe WindowDevicesSystems()
+        public unsafe WindowDevicesSystems(Simulator simulator)
         {
+            world = simulator.world;
             windows = new();
+            windowSizes = new();
             keyboards = new();
             mice = new();
+
+            Schema schema = simulator.world.Schema;
+            keyboardType = schema.GetComponentType<IsKeyboard>();
+            mouseType = schema.GetComponentType<IsMouse>();
+            timestampType = schema.GetComponentType<LastDeviceUpdateTime>();
+            windowType = schema.GetComponentType<IsWindow>();
+            destinationType = schema.GetComponentType<IsDestination>();
             AddListener();
         }
 
@@ -33,20 +50,19 @@ namespace InputDevices.Systems
         {
             RemoveListener();
 
-            foreach (uint keyboardId in keyboards.Keys)
+            foreach (Device<IsKeyboard> keyboard in keyboards.Values)
             {
-                ref VirtualDevice<KeyboardState> device = ref keyboards[keyboardId];
-                device.InputDevice.Dispose();
+                world.DestroyEntity(keyboard.entity);
             }
 
-            foreach (uint mouseId in mice.Keys)
+            foreach (Device<IsMouse> mouse in mice.Values)
             {
-                ref VirtualDevice<MouseState> device = ref mice[mouseId];
-                device.InputDevice.Dispose();
+                world.DestroyEntity(mouse.entity);
             }
 
             mice.Dispose();
             keyboards.Dispose();
+            windowSizes.Dispose();
             windows.Dispose();
         }
 
@@ -76,9 +92,9 @@ namespace InputDevices.Systems
             //remove windows that no longer exist
             Span<uint> toRemove = stackalloc uint[windows.Count];
             int removeCount = 0;
-            foreach ((uint windowId, Window window) in windows)
+            foreach ((uint windowId, uint windowEntity) in windows)
             {
-                if (window.IsDestroyed)
+                if (world.ContainsEntity(windowEntity))
                 {
                     toRemove[removeCount++] = windowId;
                 }
@@ -89,22 +105,26 @@ namespace InputDevices.Systems
                 windows.Remove(toRemove[i]);
             }
 
-            //add windows
-            int windowType = world.Schema.GetComponentType<IsWindow>();
+            //add windows and gather their sizes
+            windowSizes.Clear();
+            BitMask componentTypes = new(windowType, destinationType);
             foreach (Chunk chunk in world.Chunks)
             {
-                if (chunk.Definition.ContainsComponent(windowType))
+                if (chunk.Definition.componentTypes.ContainsAll(componentTypes))
                 {
                     ReadOnlySpan<uint> entities = chunk.Entities;
-                    ComponentEnumerator<IsWindow> components = chunk.GetComponents<IsWindow>(windowType);
+                    ComponentEnumerator<IsWindow> windowComponents = chunk.GetComponents<IsWindow>(windowType);
+                    ComponentEnumerator<IsDestination> destinationComponents = chunk.GetComponents<IsDestination>(windowType);
                     for (int i = 0; i < entities.Length; i++)
                     {
-                        ref IsWindow component = ref components[i];
+                        ref IsWindow component = ref windowComponents[i];
                         if (!windows.ContainsKey(component.id))
                         {
-                            Entity entity = new(world, entities[i]);
-                            windows.Add(component.id, entity.As<Window>());
+                            windows.Add(component.id, entities[i]);
                         }
+
+                        ref IsDestination destination = ref destinationComponents[i];
+                        windowSizes.Add(component.id, new(destination.width, destination.height));
                     }
                 }
             }
@@ -114,52 +134,50 @@ namespace InputDevices.Systems
         {
             foreach (uint keyboardId in keyboards.Keys)
             {
-                ref VirtualDevice<KeyboardState> device = ref keyboards[keyboardId];
-                if (device.entity == default)
+                ref Device<IsKeyboard> keyboard = ref keyboards[keyboardId];
+                if (keyboard.entity == default)
                 {
-                    Keyboard newKeyboard = new(device.World);
-                    newKeyboard.Window = device.window;
-                    device.InputDevice = newKeyboard;
+                    Keyboard newKeyboard = new(world, (rint)1);
+                    newKeyboard.AddReference(keyboard.window);
+                    keyboard.entity = newKeyboard.value;
                 }
 
-                ref IsKeyboard current = ref device.World.GetComponent<IsKeyboard>(device.entity);
-                ref LastKeyboardState last = ref device.World.GetComponent<LastKeyboardState>(device.entity);
-                current.state = device.internalCurrentState;
-                last.value = device.internalLastState;
+                ref IsKeyboard component = ref world.GetComponent<IsKeyboard>(keyboard.entity, keyboardType);
+                component.currentState = keyboard.component.currentState;
+                component.lastState = keyboard.component.lastState;
             }
 
             foreach (uint mouseId in mice.Keys)
             {
-                ref VirtualDevice<MouseState> device = ref mice[mouseId];
-                if (device.entity == default)
+                ref Device<IsMouse> mouse = ref mice[mouseId];
+                if (mouse.entity == default)
                 {
-                    Mouse newMouse = new(device.World);
-                    newMouse.Window = device.window;
-                    device.InputDevice = newMouse;
+                    Mouse newMouse = new(world, (rint)1);
+                    newMouse.AddReference(mouse.window);
+                    mouse.entity = newMouse.value;
                 }
 
-                ref IsMouse current = ref device.World.GetComponent<IsMouse>(device.entity);
-                ref LastMouseState last = ref device.World.GetComponent<LastMouseState>(device.entity);
-                device.internalCurrentState.cursor = current.state.cursor;
-                if (current.state.cursor != last.value.cursor)
+                ref IsMouse component = ref world.GetComponent<IsMouse>(mouse.entity, mouseType);
+                mouse.component.currentState.cursor = component.currentState.cursor;
+                if (component.currentState.cursor != component.lastState.cursor)
                 {
                     SDL_Cursor currentCursor = SDL_GetCursor();
                     SDL_DestroyCursor(currentCursor);
 
-                    if (current.state.cursor == Mouse.Cursor.Default)
+                    if (component.currentState.cursor == Mouse.Cursor.Default)
                     {
                         SDL_Cursor defaultCursor = SDL_GetDefaultCursor();
                         SDL_SetCursor(defaultCursor);
                     }
                     else
                     {
-                        SDL_Cursor customCursor = SDL_CreateSystemCursor((SDL_SystemCursor)current.state.cursor);
+                        SDL_Cursor customCursor = SDL_CreateSystemCursor((SDL_SystemCursor)component.currentState.cursor);
                         SDL_SetCursor(customCursor);
                     }
                 }
 
-                current.state = device.internalCurrentState;
-                last.value = device.internalLastState;
+                component.currentState = mouse.component.currentState;
+                component.lastState = mouse.component.lastState;
             }
         }
 
@@ -167,16 +185,16 @@ namespace InputDevices.Systems
         {
             foreach (uint keyboardId in keyboards.Keys)
             {
-                ref VirtualDevice<KeyboardState> device = ref keyboards[keyboardId];
-                device.internalLastState = device.internalCurrentState;
+                ref Device<IsKeyboard> device = ref keyboards[keyboardId];
+                device.component.lastState = device.component.currentState;
             }
 
             foreach (uint mouseId in mice.Keys)
             {
-                ref VirtualDevice<MouseState> device = ref mice[mouseId];
-                device.internalLastState = device.internalCurrentState;
-                device.internalCurrentState.scroll = default;
-                device.internalCurrentState.delta = default;
+                ref Device<IsMouse> device = ref mice[mouseId];
+                device.component.lastState = device.component.currentState;
+                device.component.currentState.scroll = default;
+                device.component.currentState.delta = default;
             }
         }
 
@@ -185,17 +203,17 @@ namespace InputDevices.Systems
             uint keyboardId = (uint)kdevice.which;
             if (type == SDL_EventType.KeyboardRemoved)
             {
-                if (keyboards.TryRemove(keyboardId, out VirtualDevice<KeyboardState> removed))
+                if (keyboards.TryRemove(keyboardId, out Device<IsKeyboard> removed))
                 {
-                    removed.InputDevice.Dispose();
+                    world.DestroyEntity(removed.entity);
                 }
             }
             else
             {
-                ref VirtualDevice<KeyboardState> device = ref keyboards.TryGetValue(keyboardId, out bool contains);
+                ref Device<IsKeyboard> device = ref keyboards.TryGetValue(keyboardId, out bool contains);
                 if (!contains)
                 {
-                    if (windows.TryGetValue(windowId, out Window window))
+                    if (windows.TryGetValue(windowId, out uint window))
                     {
                         device = ref keyboards.Add(keyboardId);
                         device = new(window);
@@ -207,14 +225,13 @@ namespace InputDevices.Systems
                     }
                 }
 
-                uint control = (uint)key.scancode;
                 if (type == SDL_EventType.KeyDown)
                 {
-                    device.internalCurrentState[(int)control] = true;
+                    device.component.currentState[(int)key.scancode] = true;
                 }
                 else if (type == SDL_EventType.KeyUp)
                 {
-                    device.internalCurrentState[(int)control] = false;
+                    device.component.currentState[(int)key.scancode] = false;
                 }
             }
         }
@@ -224,17 +241,17 @@ namespace InputDevices.Systems
             uint mouseId = (uint)mdevice.which;
             if (type == SDL_EventType.MouseRemoved)
             {
-                if (mice.TryRemove(mouseId, out VirtualDevice<MouseState> removed))
+                if (mice.TryRemove(mouseId, out Device<IsMouse> removed))
                 {
-                    removed.InputDevice.Dispose();
+                    world.DestroyEntity(removed.entity);
                 }
             }
             else
             {
-                ref VirtualDevice<MouseState> device = ref mice.TryGetValue(mouseId, out bool contains);
+                ref Device<IsMouse> device = ref mice.TryGetValue(mouseId, out bool contains);
                 if (!contains)
                 {
-                    if (windows.TryGetValue(windowId, out Window window))
+                    if (windows.TryGetValue(windowId, out uint window))
                     {
                         device = ref mice.Add(mouseId);
                         device = new(window);
@@ -248,24 +265,22 @@ namespace InputDevices.Systems
 
                 if (type == SDL_EventType.MouseMotion)
                 {
-                    Window window = windows[windowId];
-                    Vector2 size = window.Size;
-                    device.internalCurrentState.position = new(motion.x, size.Y - motion.y);
-                    device.internalCurrentState.delta += new Vector2(motion.xrel, -motion.yrel);
+                    uint window = windows[windowId];
+                    Vector2 size = windowSizes[windowId];
+                    device.component.currentState.position = new(motion.x, size.Y - motion.y);
+                    device.component.currentState.delta += new Vector2(motion.xrel, -motion.yrel);
                 }
                 else if (type == SDL_EventType.MouseWheel)
                 {
-                    device.internalCurrentState.scroll += new Vector2(wheel.x, wheel.y);
+                    device.component.currentState.scroll += new Vector2(wheel.x, wheel.y);
                 }
                 else if (type == SDL_EventType.MouseButtonDown)
                 {
-                    uint control = button.button;
-                    device.internalCurrentState[control] = true;
+                    device.component.currentState[button.button] = true;
                 }
                 else if (type == SDL_EventType.MouseButtonUp)
                 {
-                    uint control = button.button;
-                    device.internalCurrentState[control] = false;
+                    device.component.currentState[button.button] = false;
                 }
             }
         }
@@ -289,27 +304,6 @@ namespace InputDevices.Systems
             }
 
             return true;
-        }
-
-        public struct VirtualDevice<T> where T : unmanaged
-        {
-            public readonly Window window;
-            public uint entity;
-            public T internalCurrentState;
-            public T internalLastState;
-
-            public InputDevice InputDevice
-            {
-                readonly get => new Entity(World, entity).As<InputDevice>();
-                set => entity = value.value;
-            }
-
-            public readonly World World => window.world;
-
-            public VirtualDevice(Window window)
-            {
-                this.window = window;
-            }
         }
     }
 }
