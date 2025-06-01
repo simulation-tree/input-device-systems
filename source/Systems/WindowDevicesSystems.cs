@@ -1,5 +1,6 @@
 ﻿using Collections.Generic;
 using InputDevices.Components;
+using InputDevices.Messages;
 using Rendering.Components;
 using SDL3;
 using Simulation;
@@ -14,14 +15,14 @@ using static SDL3.SDL3;
 namespace InputDevices.Systems
 {
     [SkipLocalsInit]
-    public class WindowDevicesSystems : ISystem, IDisposable
+    public partial class WindowDevicesSystems : SystemBase, IListener<InputUpdate>
     {
         private readonly World world;
         private readonly Dictionary<uint, uint> windows;
         private readonly Dictionary<uint, Vector2> windowSizes;
         private readonly Dictionary<uint, Device<IsKeyboard>> keyboards;
         private readonly Dictionary<uint, Device<IsMouse>> mice;
-        private nint index;
+        private readonly nint index;
         private unsafe delegate* unmanaged[Cdecl]<nint, SDL_Event*, SDLBool> eventFilterFunction;
         private readonly int keyboardType;
         private readonly int mouseType;
@@ -29,26 +30,26 @@ namespace InputDevices.Systems
         private readonly int windowType;
         private readonly int destinationType;
 
-        public unsafe WindowDevicesSystems(Simulator simulator)
+        public WindowDevicesSystems(Simulator simulator, World world) : base(simulator)
         {
-            world = simulator.world;
+            this.world = world;
             windows = new();
             windowSizes = new();
             keyboards = new();
             mice = new();
 
-            Schema schema = simulator.world.Schema;
+            Schema schema = world.Schema;
             keyboardType = schema.GetComponentType<IsKeyboard>();
             mouseType = schema.GetComponentType<IsMouse>();
             timestampType = schema.GetComponentType<LastDeviceUpdateTime>();
             windowType = schema.GetComponentType<IsWindow>();
             destinationType = schema.GetComponentType<IsDestination>();
-            AddListener();
+            index = AddListener();
         }
 
-        public void Dispose()
+        public override void Dispose()
         {
-            RemoveListener();
+            RemoveListener(index);
 
             foreach (Device<IsKeyboard> keyboard in keyboards.Values)
             {
@@ -66,28 +67,28 @@ namespace InputDevices.Systems
             windows.Dispose();
         }
 
-        private unsafe void AddListener()
+        private unsafe nint AddListener()
         {
-            index = Systems.Register(this);
+            nint index = Systems.Register(this);
             eventFilterFunction = &EventFilter;
             SDL_AddEventWatch(eventFilterFunction, index);
+            return index;
         }
 
-        private unsafe void RemoveListener()
+        private unsafe void RemoveListener(nint index)
         {
             SDL_RemoveEventWatch(eventFilterFunction, index);
             Systems.Unregister(index);
         }
 
-        void ISystem.Update(Simulator simulator, double deltaTime)
+        void IListener<InputUpdate>.Receive(ref InputUpdate message)
         {
-            World world = simulator.world;
-            FindWindows(world);
+            FindWindows();
             UpdateEntitiesToMatchDevices();
             AdvancePreviousStates();
         }
 
-        private void FindWindows(World world)
+        private void FindWindows()
         {
             //remove windows that no longer exist
             Span<uint> toRemove = stackalloc uint[windows.Count];
