@@ -95,7 +95,7 @@ namespace InputDevices.Systems
             int removeCount = 0;
             foreach ((uint windowId, uint windowEntity) in windows)
             {
-                if (world.ContainsEntity(windowEntity))
+                if (!world.ContainsEntity(windowEntity))
                 {
                     toRemove[removeCount++] = windowId;
                 }
