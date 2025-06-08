@@ -104,10 +104,10 @@ namespace InputDevices.Systems
             for (int i = 0; i < removeCount; i++)
             {
                 windows.Remove(toRemove[i]);
+                windowSizes.Remove(toRemove[i]);
             }
 
             //add windows and gather their sizes
-            windowSizes.Clear();
             BitMask componentTypes = new(windowType, destinationType);
             foreach (Chunk chunk in world.Chunks)
             {
@@ -119,13 +119,16 @@ namespace InputDevices.Systems
                     for (int i = 0; i < entities.Length; i++)
                     {
                         ref IsWindow component = ref windowComponents[i];
+                        ref IsDestination destination = ref destinationComponents[i];
                         if (!windows.ContainsKey(component.id))
                         {
                             windows.Add(component.id, entities[i]);
+                            windowSizes.Add(component.id, new(destination.width, destination.height));
                         }
-
-                        ref IsDestination destination = ref destinationComponents[i];
-                        windowSizes.Add(component.id, new(destination.width, destination.height));
+                        else
+                        {
+                            windowSizes[component.id] = new(destination.width, destination.height);
+                        }
                     }
                 }
             }
