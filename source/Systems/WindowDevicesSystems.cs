@@ -22,7 +22,7 @@ namespace InputDevices.Systems
         private readonly Dictionary<uint, Vector2> windowSizes;
         private readonly Dictionary<uint, Device<IsKeyboard>> keyboards;
         private readonly Dictionary<uint, Device<IsMouse>> mice;
-        private readonly nint index;
+        private readonly GCHandle handle;
         private unsafe delegate* unmanaged[Cdecl]<nint, SDL_Event*, SDLBool> eventFilterFunction;
         private readonly int keyboardType;
         private readonly int mouseType;
@@ -32,6 +32,7 @@ namespace InputDevices.Systems
 
         public WindowDevicesSystems(Simulator simulator, World world) : base(simulator)
         {
+            handle = GCHandle.Alloc(this, GCHandleType.Normal);
             this.world = world;
             windows = new();
             windowSizes = new();
@@ -44,12 +45,12 @@ namespace InputDevices.Systems
             timestampType = schema.GetComponentType<LastDeviceUpdateTime>();
             windowType = schema.GetComponentType<IsWindow>();
             destinationType = schema.GetComponentType<IsDestination>();
-            index = AddListener();
+            AddListener();
         }
 
         public override void Dispose()
         {
-            RemoveListener(index);
+            RemoveListener();
 
             foreach (Device<IsKeyboard> keyboard in keyboards.Values)
             {
@@ -65,20 +66,18 @@ namespace InputDevices.Systems
             keyboards.Dispose();
             windowSizes.Dispose();
             windows.Dispose();
+            handle.Free();
         }
 
-        private unsafe nint AddListener()
+        private unsafe void AddListener()
         {
-            nint index = Systems.Register(this);
             eventFilterFunction = &EventFilter;
-            SDL_AddEventWatch(eventFilterFunction, index);
-            return index;
+            SDL_AddEventWatch(eventFilterFunction, GCHandle.ToIntPtr(handle));
         }
 
-        private unsafe void RemoveListener(nint index)
+        private unsafe void RemoveListener()
         {
-            SDL_RemoveEventWatch(eventFilterFunction, index);
-            Systems.Unregister(index);
+            SDL_RemoveEventWatch(eventFilterFunction, GCHandle.ToIntPtr(handle));
         }
 
         void IListener<InputUpdate>.Receive(ref InputUpdate message)
@@ -115,20 +114,20 @@ namespace InputDevices.Systems
                 {
                     ReadOnlySpan<uint> entities = chunk.Entities;
                     ComponentEnumerator<IsWindow> windowComponents = chunk.GetComponents<IsWindow>(windowType);
-                    ComponentEnumerator<IsDestination> destinationComponents = chunk.GetComponents<IsDestination>(windowType);
+                    ComponentEnumerator<IsDestination> destinationComponents = chunk.GetComponents<IsDestination>(destinationType);
                     for (int i = 0; i < entities.Length; i++)
                     {
                         ref IsWindow component = ref windowComponents[i];
                         ref IsDestination destination = ref destinationComponents[i];
-                        if (!windows.ContainsKey(component.id))
+                        ref Vector2 windowSize = ref windowSizes.TryGetValue(component.id, out bool contains);
+                        if (!contains)
                         {
+                            windowSize = ref windowSizes.Add(component.id);
                             windows.Add(component.id, entities[i]);
-                            windowSizes.Add(component.id, new(destination.width, destination.height));
                         }
-                        else
-                        {
-                            windowSizes[component.id] = new(destination.width, destination.height);
-                        }
+
+                        windowSize.X = destination.width;
+                        windowSize.Y = destination.height;
                     }
                 }
             }
@@ -290,19 +289,19 @@ namespace InputDevices.Systems
         }
 
         [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-        private static unsafe SDLBool EventFilter(nint index, SDL_Event* sdlEvent)
+        private static unsafe SDLBool EventFilter(nint handle, SDL_Event* sdlEvent)
         {
             SDL_EventType type = sdlEvent->type;
             if (type is SDL_EventType.MouseMotion or SDL_EventType.MouseWheel || type == SDL_EventType.MouseAdded ||
                 type == SDL_EventType.MouseRemoved || type == SDL_EventType.MouseButtonDown || type == SDL_EventType.MouseButtonUp)
             {
-                WindowDevicesSystems system = Systems.Get(index);
+                WindowDevicesSystems system = (WindowDevicesSystems)(GCHandle.FromIntPtr(handle).Target ?? throw new InvalidOperationException("Invalid handle"));
                 uint windowId = (uint)sdlEvent->window.windowID;
                 system.MouseEvent(windowId, type, sdlEvent->mdevice, sdlEvent->motion, sdlEvent->wheel, sdlEvent->button);
             }
             else if (type == SDL_EventType.KeyboardAdded || type == SDL_EventType.KeyboardRemoved || type == SDL_EventType.KeyDown || type == SDL_EventType.KeyUp)
             {
-                WindowDevicesSystems system = Systems.Get(index);
+                WindowDevicesSystems system = (WindowDevicesSystems)(GCHandle.FromIntPtr(handle).Target ?? throw new InvalidOperationException("Invalid handle"));
                 uint windowId = (uint)sdlEvent->window.windowID;
                 system.KeyboardEvent(windowId, type, sdlEvent->kdevice, sdlEvent->key);
             }
