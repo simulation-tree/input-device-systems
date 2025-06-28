@@ -22,6 +22,8 @@ namespace InputDevices.Systems
         private readonly Dictionary<uint, Vector2> windowSizes;
         private readonly Dictionary<uint, Device<IsKeyboard>> keyboards;
         private readonly Dictionary<uint, Device<IsMouse>> mice;
+        private readonly List<uint> keyboardKeys;
+        private readonly List<uint> mouseKeys;
         private readonly GCHandle handle;
         private unsafe delegate* unmanaged[Cdecl]<nint, SDL_Event*, SDLBool> eventFilterFunction;
         private readonly int keyboardType;
@@ -34,10 +36,12 @@ namespace InputDevices.Systems
         {
             handle = GCHandle.Alloc(this, GCHandleType.Normal);
             this.world = world;
-            windows = new();
-            windowSizes = new();
-            keyboards = new();
-            mice = new();
+            windows = new(8);
+            windowSizes = new(8);
+            keyboards = new(8);
+            mice = new(8);
+            keyboardKeys = new(8);
+            mouseKeys = new(8);
 
             Schema schema = world.Schema;
             keyboardType = schema.GetComponentType<IsKeyboard>();
@@ -62,6 +66,8 @@ namespace InputDevices.Systems
                 world.DestroyEntity(mouse.entity);
             }
 
+            mouseKeys.Dispose();
+            keyboardKeys.Dispose();
             mice.Dispose();
             keyboards.Dispose();
             windowSizes.Dispose();
@@ -135,7 +141,8 @@ namespace InputDevices.Systems
 
         private void UpdateEntitiesToMatchDevices()
         {
-            foreach (uint keyboardId in keyboards.Keys)
+            Span<uint> keyboardKeysSpan = keyboardKeys.AsSpan();
+            foreach (uint keyboardId in keyboardKeysSpan)
             {
                 ref Device<IsKeyboard> keyboard = ref keyboards[keyboardId];
                 if (keyboard.entity == default)
@@ -150,7 +157,8 @@ namespace InputDevices.Systems
                 component.lastState = keyboard.component.lastState;
             }
 
-            foreach (uint mouseId in mice.Keys)
+            Span<uint> mouseKeysSpan = mouseKeys.AsSpan();
+            foreach (uint mouseId in mouseKeysSpan)
             {
                 ref Device<IsMouse> mouse = ref mice[mouseId];
                 if (mouse.entity == default)
@@ -186,13 +194,15 @@ namespace InputDevices.Systems
 
         private void AdvancePreviousStates()
         {
-            foreach (uint keyboardId in keyboards.Keys)
+            Span<uint> keyboardKeysSpan = keyboardKeys.AsSpan();
+            foreach (uint keyboardId in keyboardKeysSpan)
             {
                 ref Device<IsKeyboard> device = ref keyboards[keyboardId];
                 device.component.lastState = device.component.currentState;
             }
 
-            foreach (uint mouseId in mice.Keys)
+            Span<uint> mouseKeysSpan = mouseKeys.AsSpan();
+            foreach (uint mouseId in mouseKeysSpan)
             {
                 ref Device<IsMouse> device = ref mice[mouseId];
                 device.component.lastState = device.component.currentState;
@@ -209,6 +219,7 @@ namespace InputDevices.Systems
                 if (keyboards.TryRemove(keyboardId, out Device<IsKeyboard> removed))
                 {
                     world.DestroyEntity(removed.entity);
+                    keyboardKeys.Remove(keyboardId);
                 }
             }
             else
@@ -220,6 +231,7 @@ namespace InputDevices.Systems
                     {
                         device = ref keyboards.Add(keyboardId);
                         device = new(window);
+                        keyboardKeys.Add(keyboardId);
                     }
                     else
                     {
@@ -247,6 +259,7 @@ namespace InputDevices.Systems
                 if (mice.TryRemove(mouseId, out Device<IsMouse> removed))
                 {
                     world.DestroyEntity(removed.entity);
+                    mouseKeys.Remove(mouseId);
                 }
             }
             else
@@ -258,6 +271,7 @@ namespace InputDevices.Systems
                     {
                         device = ref mice.Add(mouseId);
                         device = new(window);
+                        mouseKeys.Add(mouseId);
                     }
                     else
                     {
