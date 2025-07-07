@@ -2,14 +2,18 @@
 {
     internal struct Device<T> where T : unmanaged
     {
-        public uint entity;
-        public uint window;
+        public bool real;
+        public uint deviceEntity;
+        public uint windowEntity;
+        public uint windowId;
         public T component;
 
-        public Device(uint window)
+        public Device(uint windowEntity, uint windowId)
         {
-            entity = default;
-            this.window = window;
+            real = true;
+            deviceEntity = default;
+            this.windowEntity = windowEntity;
+            this.windowId = windowId;
             component = default;
         }
     }
