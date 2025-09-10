@@ -18,25 +18,29 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Alimer.Bindings.SDL" Version="3.9.8"/>
+    <PackageReference Include="Alimer.Bindings.SDL" Version="3.9.8" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\input-devices\source\InputDevices.csproj"/>
-    <ProjectReference Include="..\..\simulation\core\Simulation.Core.csproj"/>
-    <ProjectReference Include="..\..\windows\source\Windows.csproj"/>
+    <ProjectReference Include="..\..\input-devices\source\InputDevices.csproj" />
+    <ProjectReference Include="..\..\simulation\core\Simulation.Core.csproj" />
+    <ProjectReference Include="..\..\windows\source\Windows.csproj" />
+    <ProjectReference Include="..\..\unmanaged\generator\Unmanaged.Generator.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
+    <ProjectReference Include="..\..\worlds\generator\Worlds.Generator.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
+    <ProjectReference Include="..\..\types\generator\Types.Generator.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
+    <ProjectReference Include="..\..\simulation\generator\Simulation.Generator.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
   </ItemGroup>
 
   <ItemGroup>
-    <Analyzer Include="..\..\unmanaged\generator\bin\$(Configuration)\netstandard2.0\Unmanaged.Generator.dll"/>
-    <Analyzer Include="..\..\worlds\generator\bin\$(Configuration)\netstandard2.0\Worlds.Generator.dll"/>
-    <Analyzer Include="..\..\types\generator\bin\$(Configuration)\netstandard2.0\Types.Generator.dll"/>
-    <Analyzer Include="..\..\simulation\generator\bin\$(Configuration)\netstandard2.0\Simulation.Generator.dll"/>
+    <Analyzer Include="..\..\unmanaged\generator\bin\$(Configuration)\netstandard2.0\Unmanaged.Generator.dll" />
+    <Analyzer Include="..\..\worlds\generator\bin\$(Configuration)\netstandard2.0\Worlds.Generator.dll" />
+    <Analyzer Include="..\..\types\generator\bin\$(Configuration)\netstandard2.0\Types.Generator.dll" />
+    <Analyzer Include="..\..\simulation\generator\bin\$(Configuration)\netstandard2.0\Simulation.Generator.dll" />
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="bin/**/*" Pack="true" PackagePath="lib" Visible="false"/>
-    <Content Include="buildTransitive/**/*" Pack="true" PackagePath="buildTransitive"/>
+    <Content Include="bin/**/*" Pack="true" PackagePath="lib" Visible="false" />
+    <Content Include="buildTransitive/**/*" Pack="true" PackagePath="buildTransitive" />
   </ItemGroup>
 
 </Project>
