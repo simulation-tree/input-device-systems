@@ -15,12 +15,12 @@ jobs:
         with:
           path: ${{ github.event.repository.name }}
             
-      - name: Checkout `windows`
+      - name: Checkout `input-devices`
         uses: actions/checkout@v4.1.2
         with:
-          repository: simulation-tree/windows
+          repository: simulation-tree/input-devices
           token: ${{ secrets.PAT }}
-          path: windows
+          path: input-devices
       
       - name: Checkout `simulation`
         uses: actions/checkout@v4.1.2
@@ -29,19 +29,12 @@ jobs:
           token: ${{ secrets.PAT }}
           path: simulation
       
-      - name: Checkout `input-devices`
+      - name: Checkout `windows`
         uses: actions/checkout@v4.1.2
         with:
-          repository: simulation-tree/input-devices
+          repository: simulation-tree/windows
           token: ${{ secrets.PAT }}
-          path: input-devices
-      
-      - name: Checkout `worlds`
-        uses: actions/checkout@v4.1.2
-        with:
-          repository: simulation-tree/worlds
-          token: ${{ secrets.PAT }}
-          path: worlds
+          path: windows
       
       - name: Checkout `unmanaged`
         uses: actions/checkout@v4.1.2
@@ -49,6 +42,13 @@ jobs:
           repository: simulation-tree/unmanaged
           token: ${{ secrets.PAT }}
           path: unmanaged
+      
+      - name: Checkout `worlds`
+        uses: actions/checkout@v4.1.2
+        with:
+          repository: simulation-tree/worlds
+          token: ${{ secrets.PAT }}
+          path: worlds
       
       - name: Checkout `types`
         uses: actions/checkout@v4.1.2
@@ -71,12 +71,12 @@ jobs:
           token: ${{ secrets.PAT }}
           path: rendering
       
-      - name: Checkout `shaders`
+      - name: Checkout `materials`
         uses: actions/checkout@v4.1.2
         with:
-          repository: simulation-tree/shaders
+          repository: simulation-tree/materials
           token: ${{ secrets.PAT }}
-          path: shaders
+          path: materials
       
       - name: Checkout `meshes`
         uses: actions/checkout@v4.1.2
@@ -85,12 +85,12 @@ jobs:
           token: ${{ secrets.PAT }}
           path: meshes
       
-      - name: Checkout `materials`
+      - name: Checkout `shaders`
         uses: actions/checkout@v4.1.2
         with:
-          repository: simulation-tree/materials
+          repository: simulation-tree/shaders
           token: ${{ secrets.PAT }}
-          path: materials
+          path: shaders
       
       - name: Checkout `data`
         uses: actions/checkout@v4.1.2
@@ -102,9 +102,7 @@ jobs:
       - name: Setup
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: |
-            9.0.x
-            10.0.x
+          dotnet-version: 9.0.x
 
       - name: Set VERSION variable from tag
         run: echo "VERSION=${GITHUB_REF/refs\/tags\/v/}" >> $GITHUB_ENV
