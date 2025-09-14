@@ -15,6 +15,7 @@
     <RepositoryUrl>https://github.com/simulation-tree/input-device-systems</RepositoryUrl>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <OutDir>bin/$(TargetFramework)/$(Configuration)</OutDir>
+    <PackageId>SimulationTree.InputDevices.Systems</PackageId>
   </PropertyGroup>
 
   <ItemGroup>
