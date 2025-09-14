@@ -11,7 +11,7 @@
     <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
     <Title>Input Device Systems</Title>
     <Authors>popcron</Authors>
-    <Company>simulation-tree</Company>
+    <Company>Simulation Tree</Company>
     <RepositoryUrl>https://github.com/simulation-tree/input-device-systems</RepositoryUrl>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <OutDir>bin/$(TargetFramework)/$(Configuration)</OutDir>
