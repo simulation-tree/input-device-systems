@@ -120,7 +120,7 @@ namespace InputDevices.Systems
             for (int c = 0; c < chunks.Length; c++)
             {
                 Chunk chunk = chunks[c];
-                if (chunk.componentTypes.ContainsAll(windowComponentTypes))
+                if (chunk.ComponentTypes.ContainsAll(windowComponentTypes))
                 {
                     ReadOnlySpan<uint> entities = chunk.Entities;
                     ComponentEnumerator<IsWindow> windowComponents = chunk.GetComponents<IsWindow>(windowType);
